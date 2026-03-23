@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テキーラ道場 — マスタ管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#18110a;--ink2:#4a3820;--ink3:#9a8470;--ink4:#c8b8a8;
+  --gold:#c8921e;--gold-l:#e8b84a;--gold-d:#7a5610;--gold-bg:#fdf4e3;
+  --teal:#1a6e58;--teal-l:#e0f0eb;
+  --red:#8c2818;--red-l:#fae8e4;
+  --cream:#faf7f1;--cream2:#f0ebe0;--cream3:#e4ddd0;
+  --white:#ffffff;
+  --border:rgba(160,130,100,.18);--border2:rgba(160,130,100,.32);
+  --shadow:0 1px 12px rgba(24,17,10,.07);--shadow-lg:0 6px 36px rgba(24,17,10,.13);
+  --r:6px;--rl:12px;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Noto Sans JP',sans-serif;
+  --mono:'DM Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:var(--sans);background:var(--cream);color:var(--ink);min-height:100vh;line-height:1.6}
+button{cursor:pointer;font-family:var(--sans)}
+input,select,textarea{font-family:var(--sans)}
+
+/* LOGIN */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse 80% 60% at 30% 60%,rgba(200,146,30,.07),transparent),
+  radial-gradient(ellipse 60% 80% at 80% 30%,rgba(26,110,88,.05),transparent),var(--cream)}
+.lcard{width:100%;max-width:380px;background:var(--white);border:1px solid var(--border2);
+  border-radius:var(--rl);padding:44px 36px;box-shadow:var(--shadow-lg)}
+.llogo{text-align:center;font-size:44px;margin-bottom:6px}
+.lbrand{font-family:var(--serif);font-size:26px;font-weight:600;color:var(--gold-d);
+  letter-spacing:.14em;text-align:center;margin-bottom:2px}
+.lsub{text-align:center;font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:32px}
+.lcard label{display:block;font-size:10px;font-weight:500;color:var(--ink3);
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;margin-top:14px}
+.lcard input{width:100%;padding:11px 13px;border:1px solid var(--border2);border-radius:var(--r);
+  font-size:13px;background:var(--cream);color:var(--ink);transition:border-color .2s}
+.lcard input:focus{outline:none;border-color:var(--gold)}
+.lerr{min-height:14px;font-size:11px;color:var(--red);margin-top:8px;text-align:center}
+.lbtn{width:100%;margin-top:22px;padding:13px;background:var(--gold-d);color:var(--cream);
+  border:none;border-radius:var(--r);font-size:13px;font-weight:500;letter-spacing:.06em;
+  transition:background .2s,transform .1s}
+.lbtn:hover{background:var(--gold)}
+.lbtn:active{transform:scale(.98)}
+.lnote{margin-top:18px;padding:12px 14px;background:var(--gold-bg);
+  border:1px solid rgba(200,146,30,.25);border-radius:var(--r);font-size:11px;
+  color:var(--ink2);line-height:1.9}
+.lnote code{font-family:var(--mono);background:var(--cream2);padding:1px 5px;border-radius:3px;font-size:10px}
+
+/* APP SHELL */
+#app{display:none;min-height:100vh}
+.topbar{height:54px;background:var(--ink);display:flex;align-items:center;padding:0 20px;
+  position:sticky;top:0;z-index:200;border-bottom:1px solid rgba(255,255,255,.06);gap:0}
+.tbrand{display:flex;align-items:center;gap:9px;font-family:var(--serif);font-size:18px;
+  color:var(--gold-l);letter-spacing:.1em;margin-right:28px;white-space:nowrap}
+.tbrand .g{font-size:22px}
+.ttabs{display:flex;gap:2px;flex:1;overflow-x:auto}
+.ttabs::-webkit-scrollbar{display:none}
+.tab{padding:7px 14px;border:none;background:none;color:rgba(255,255,255,.42);font-size:11px;
+  font-weight:500;letter-spacing:.04em;border-radius:var(--r);transition:all .15s;white-space:nowrap}
+.tab:hover{color:rgba(255,255,255,.72);background:rgba(255,255,255,.06)}
+.tab.active{color:var(--gold-l);background:rgba(200,146,30,.16)}
+.tab .cnt{display:inline-block;margin-left:5px;padding:1px 6px;border-radius:20px;
+  font-size:9px;font-family:var(--mono);background:rgba(255,255,255,.1);color:rgba(255,255,255,.45)}
+.tab.active .cnt{background:rgba(200,146,30,.3);color:var(--gold-l)}
+.tuser{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0}
+.temail{font-size:10px;color:rgba(255,255,255,.3);font-family:var(--mono)}
+.tlogout{padding:5px 12px;border:1px solid rgba(255,255,255,.14);border-radius:var(--r);
+  background:none;color:rgba(255,255,255,.38);font-size:11px;transition:all .15s}
+.tlogout:hover{background:rgba(255,255,255,.08);color:rgba(255,255,255,.65)}
+
+/* CONTENT */
+.content{padding:28px 28px;max-width:1280px;width:100%;margin:0 auto}
+.page{display:none}.page.active{display:block}
+.phead{display:flex;justify-content:space-between;align-items:flex-end;
+  margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.ptitle{font-family:var(--serif);font-size:28px;font-weight:500;color:var(--gold-d);letter-spacing:.04em}
+.pdesc{font-size:11px;color:var(--ink3);margin-top:2px}
+
+/* STAT ROW */
+.srow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.sbox{background:var(--white);border:1px solid var(--border);border-radius:var(--rl);
+  padding:16px 18px;box-shadow:var(--shadow)}
+.slabel{font-size:10px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.sval{font-family:var(--serif);font-size:26px;font-weight:500;color:var(--gold-d);line-height:1}
+.ssub{font-size:10px;color:var(--ink3);margin-top:4px}
+
+/* CARD */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--shadow)}
+.toolbar{display:flex;gap:8px;align-items:center;padding:12px 14px;
+  border-bottom:1px solid var(--border);flex-wrap:wrap}
+.sbox-inp{display:flex;align-items:center;gap:6px;border:1px solid var(--border2);
+  border-radius:var(--r);padding:6px 10px;flex:1;min-width:160px;background:var(--cream)}
+.sbox-inp input{border:none;background:none;font-size:12px;color:var(--ink);width:100%}
+.sbox-inp input:focus{outline:none}
+.fsel{padding:7px 10px;border:1px solid var(--border2);border-radius:var(--r);
+  font-size:12px;background:var(--cream);color:var(--ink);cursor:pointer}
+.fsel:focus{outline:none;border-color:var(--gold)}
+
+/* TABLE */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{border-bottom:1px solid var(--border2)}
+th{padding:10px 12px;text-align:left;font-size:10px;font-weight:500;color:var(--ink3);
+  letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--ink)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(200,146,30,.025)}
+.mono{font-family:var(--mono);font-size:11px}
+.dim{color:var(--ink3)}
+.acts{display:flex;gap:5px;justify-content:flex-end}
+.ec{text-align:center;color:var(--ink3);padding:32px!important;font-style:italic;font-size:12px}
+
+/* BADGES */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500;white-space:nowrap}
+.bg-gold{background:#fdf0d0;color:var(--gold-d);border:1px solid rgba(200,146,30,.3)}
+.bg-teal{background:var(--teal-l);color:var(--teal);border:1px solid rgba(26,110,88,.3)}
+.bg-red {background:var(--red-l);color:var(--red);border:1px solid rgba(140,40,24,.2)}
+.bg-gray{background:var(--cream2);color:var(--ink3);border:1px solid var(--border2)}
+.bg-ink {background:var(--ink);color:var(--gold-l)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:4px;padding:8px 14px;border-radius:var(--r);
+  font-size:12px;font-weight:500;border:none;transition:all .15s;letter-spacing:.02em;white-space:nowrap}
+.btn:active{transform:scale(.98)}
+.bp{background:var(--gold-d);color:var(--cream)}.bp:hover{background:var(--gold)}
+.bs{background:var(--cream2);color:var(--ink2);border:1px solid var(--border2)}.bs:hover{background:var(--cream3)}
+.bg{background:none;color:var(--ink2);border:1px solid var(--border2)}.bg:hover{background:var(--cream)}
+.bd{background:var(--red-l);color:var(--red);border:1px solid rgba(140,40,24,.2)}.bd:hover{background:#f5d4ce}
+.sm{padding:5px 10px;font-size:11px}
+
+/* MODAL */
+.mbg{position:fixed;inset:0;background:rgba(24,17,10,.52);z-index:1000;
+  display:none;align-items:center;justify-content:center;padding:16px}
+.mbg.open{display:flex}
+.modal{background:var(--white);border-radius:var(--rl);width:100%;max-width:600px;
+  max-height:94vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:mIn .18s ease}
+.modal-lg{max-width:780px}
+@keyframes mIn{from{transform:scale(.96) translateY(6px);opacity:0}to{transform:none;opacity:1}}
+.mhead{display:flex;justify-content:space-between;align-items:center;
+  padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+.mtitle{font-family:var(--serif);font-size:21px;font-weight:600;color:var(--gold-d)}
+.mx{background:none;border:none;font-size:20px;color:var(--ink3);padding:2px 4px;line-height:1}
+.mx:hover{color:var(--ink)}
+.mbody{padding:20px 24px}
+.mfoot{display:flex;justify-content:flex-end;gap:8px;
+  padding:14px 24px 20px;border-top:1px solid var(--border);margin-top:6px}
+
+/* FORM */
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.fl{font-size:10px;font-weight:500;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase}
+.fl .req{color:var(--red);margin-left:2px}
+.fi,.fs,.ft{padding:8px 11px;border:1px solid var(--border2);border-radius:var(--r);
+  font-size:12px;color:var(--ink);background:var(--cream);transition:border-color .2s,box-shadow .2s;width:100%}
+.fi:focus,.fs:focus,.ft:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,146,30,.1)}
+.fi[readonly]{background:var(--cream2);color:var(--ink3);cursor:default}
+.ft{resize:vertical;min-height:64px}
+.fhint{font-size:10px;color:var(--ink3)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.frow.c3{grid-template-columns:1fr 1fr 1fr}
+.frow.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+.full{grid-column:1/-1}
+.fsep{border:none;border-top:1px solid var(--border);margin:14px 0}
+
+/* KEY BUILDER */
+.keybox{background:var(--ink);border-radius:var(--r);padding:10px 14px;
+  font-family:var(--mono);font-size:14px;color:var(--gold-l);letter-spacing:.12em;
+  margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.keybox .klabel{font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.08em;
+  text-transform:uppercase;margin-left:auto;white-space:nowrap}
+.keypart{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px}
+.kp-nom{background:rgba(200,146,30,.3);color:var(--gold-l)}
+.kp-type{background:rgba(26,110,88,.3);color:#7fe0c0}
+.kp-seq{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)}
+.kp-st{background:rgba(140,40,24,.3);color:#f0a090}
+.kp-cat{background:rgba(200,146,30,.25);color:var(--gold-l)}
+.kp-cls{background:rgba(26,110,88,.25);color:#7fe0c0}
+.kp-flt{background:rgba(255,255,255,.08);color:rgba(255,255,255,.6)}
+.kp-add{background:rgba(140,40,24,.2);color:#f0a090}
+
+/* TOAST */
+#toasts{position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:6px}
+.toast{padding:10px 15px;border-radius:var(--r);font-size:12px;font-weight:500;
+  box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:6px;min-width:200px;
+  animation:tIn .2s ease}
+@keyframes tIn{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.tok{background:var(--teal);color:#fff}
+.terr{background:var(--red);color:#fff}
+.tinf{background:var(--gold-d);color:var(--cream)}
+
+/* SPIN */
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border2);
+  border-top-color:var(--gold);border-radius:50%;animation:sp .5s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* CONFIRM */
+.confirm-box{position:fixed;inset:0;background:rgba(24,17,10,.52);z-index:2000;
+  display:none;align-items:center;justify-content:center}
+.confirm-box.open{display:flex}
+.confirm-card{background:var(--white);border-radius:var(--rl);padding:28px 28px 22px;
+  max-width:340px;width:100%;box-shadow:var(--shadow-lg);text-align:center}
+.confirm-msg{font-size:14px;margin-bottom:20px;color:var(--ink2);line-height:1.7}
+.confirm-acts{display:flex;gap:8px;justify-content:center}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="lcard">
+    <div class="llogo">🥃</div>
+    <div class="lbrand">テキーラ道場</div>
+    <div class="lsub">Master Data Console</div>
+    <div class="lnote">
+      ⚙️ <strong>初回設定</strong>：<code>FIREBASE_CONFIG</code> に<br>
+      Firebase Console のウェブアプリ設定値を入力してください。
+    </div>
+    <label>メールアドレス</label>
+    <input type="email" id="lemail" placeholder="owner@agavebar.jp" autocomplete="email">
+    <label>パスワード</label>
+    <input type="password" id="lpass" placeholder="••••••••" autocomplete="current-password">
+    <div class="lerr" id="lerr"></div>
+    <button class="lbtn" onclick="doLogin()">ログイン</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="tbrand"><span class="g">🥃</span>テキーラ道場</div>
+    <div class="ttabs">
+      <button class="tab active" onclick="showPage('districts')"    id="tab-districts">地区 <span class="cnt" id="cnt-districts">—</span></button>
+      <button class="tab"        onclick="showPage('locations')"    id="tab-locations">所在地 <span class="cnt" id="cnt-locations">—</span></button>
+      <button class="tab"        onclick="showPage('distilleries')" id="tab-distilleries">蒸留所 <span class="cnt" id="cnt-distilleries">—</span></button>
+      <button class="tab"        onclick="showPage('brands')"       id="tab-brands">ブランド <span class="cnt" id="cnt-brands">—</span></button>
+      <button class="tab"        onclick="showPage('classes')"      id="tab-classes">クラス <span class="cnt" id="cnt-classes">—</span></button>
+      <button class="tab"        onclick="showPage('bottles')"      id="tab-bottles">ボトル <span class="cnt" id="cnt-bottles">—</span></button>
+    </div>
+    <div class="tuser">
+      <span class="temail" id="temail"></span>
+      <button class="tlogout" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══ 地区マスタ ═══ -->
+    <div class="page active" id="page-districts">
+      <div class="phead">
+        <div><div class="ptitle">地区マスタ</div><div class="pdesc">districtId 2桁 — 7地区固定</div></div>
+        <button class="btn bp" onclick="openDistrictModal()">＋ 地区登録</button>
+      </div>
+      <div class="card">
+        <div class="tw"><table>
+          <thead><tr><th>地区ID</th><th>地区名</th><th>操作</th></tr></thead>
+          <tbody id="tb-districts"><tr><td colspan="3" class="ec"><span class="spin"></span></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ═══ 所在地マスタ ═══ -->
+    <div class="page" id="page-locations">
+      <div class="phead">
+        <div><div class="ptitle">所在地マスタ</div><div class="pdesc">locationId 4桁 = 地区2桁 + 連番2桁</div></div>
+        <button class="btn bp" onclick="openLocationModal()">＋ 所在地登録</button>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <div class="sbox-inp"><input type="text" id="s-loc" placeholder="所在地名で検索..." oninput="filterTable('locations')"></div>
+          <select class="fsel" id="f-loc-dist" onchange="filterTable('locations')">
+            <option value="">全地区</option>
+          </select>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>所在地ID</th><th>地区</th><th>所在地名</th><th>緯度</th><th>経度</th><th>情報URL</th><th>操作</th></tr></thead>
+          <tbody id="tb-locations"><tr><td colspan="7" class="ec"><span class="spin"></span></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ═══ 蒸留所マスタ ═══ -->
+    <div class="page" id="page-distilleries">
+      <div class="phead">
+        <div><div class="ptitle">蒸留所マスタ</div><div class="pdesc">NOM番号 4桁</div></div>
+        <button class="btn bp" onclick="openDistilleryModal()">＋ 蒸留所登録</button>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <div class="sbox-inp"><input type="text" id="s-dis" placeholder="NOM・蒸留所名で検索..." oninput="filterTable('distilleries')"></div>
+          <select class="fsel" id="f-dis-dist" onchange="filterTable('distilleries')">
+            <option value="">全地区</option>
+          </select>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>NOM</th><th>蒸留所名（ES）</th><th>蒸留所名（JA）</th><th>地区</th><th>所在地</th><th>操作</th></tr></thead>
+          <tbody id="tb-distilleries"><tr><td colspan="6" class="ec"><span class="spin"></span></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ═══ ブランドマスタ ═══ -->
+    <div class="page" id="page-brands">
+      <div class="phead">
+        <div><div class="ptitle">ブランドマスタ</div><div class="pdesc">brandId 9桁 = NOM4 + 区分1 + 連番3 + 状態1</div></div>
+        <button class="btn bp" onclick="openBrandModal()">＋ ブランド登録</button>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <div class="sbox-inp"><input type="text" id="s-br" placeholder="NOM・ブランド名で検索..." oninput="filterTable('brands')"></div>
+          <select class="fsel" id="f-br-type" onchange="filterTable('brands')">
+            <option value="">全区分</option><option value="0">蒸留所ブランド</option><option value="1">委託ブランド</option>
+          </select>
+          <select class="fsel" id="f-br-st" onchange="filterTable('brands')">
+            <option value="">全状態</option><option value="0">稼働中</option><option value="1">終売</option>
+          </select>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>ブランドID</th><th>NOM</th><th>区分</th><th>ブランド名（ES）</th><th>ブランド名（JA）</th><th>状態</th><th>AMM</th><th>操作</th></tr></thead>
+          <tbody id="tb-brands"><tr><td colspan="8" class="ec"><span class="spin"></span></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ═══ クラスマスタ ═══ -->
+    <div class="page" id="page-classes">
+      <div class="phead">
+        <div><div class="ptitle">クラスマスタ</div><div class="pdesc">classId 4桁 = カテゴリ1 + クラス1 + 濾過1 + 添加物1</div></div>
+        <button class="btn bp" onclick="openClassModal()">＋ クラス登録</button>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <select class="fsel" id="f-cl-cat" onchange="filterTable('classes')">
+            <option value="">全カテゴリ</option><option value="0">100% Agave</option><option value="1">Mixto</option>
+          </select>
+          <select class="fsel" id="f-cl-cls" onchange="filterTable('classes')">
+            <option value="">全クラス</option>
+            <option value="1">Blanco</option><option value="2">Joven/Gold</option>
+            <option value="3">Reposado</option><option value="4">Añejo</option><option value="5">Extra Añejo</option>
+          </select>
+        </div>
+        <div class="tw"><table>
+          <thead><tr><th>クラスID</th><th>カテゴリ</th><th>クラス</th><th>濾過</th><th>添加物</th><th>クラス名</th><th>操作</th></tr></thead>
+          <tbody id="tb-classes"><tr><td colspan="7" class="ec"><span class="spin"></span></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ═══ ボトルデータ ═══ -->
+    <div class="page" id="page-bottles">
+      <div class="phead">
+        <div><div class="ptitle">ボトルデータ</div><div class="pdesc">bottleId 16桁 = brandId9 + classId4 + 連番3</div></div>
+        <button class="btn bp" onclick="openBottleModal()">＋ ボトル登録</button>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <div class="sbox-inp"><input type="text" id="s-bt" placeholder="ボトル名・NOMで検索..." oninput="filterTable('bottles')"></div>
+          <select class="fsel" id="f-bt-srv" onchange="filterTable('bottles')">
+            <option value="">全提供区分</option><option value="0">提供中</option><option value="1">提供停止</option>
+          </select>
+          <select class="fsel" id="f-bt-stk" onchange="filterTable('bottles')">
+            <option value="">全在庫</option><option value="1">在庫あり</option><option value="0">在庫なし</option>
+          </select>
+          <select class="fsel" id="f-bt-avail" onchange="filterTable('bottles')">
+            <option value="">全入手区分</option><option value="0">入手可</option><option value="1">入手困難</option><option value="2">入手不可</option>
+          </select>
+        </div>
+        <div class="tw"><table>
+          <thead><tr>
+            <th>ボトルID</th><th>ボトル名（JA）</th><th>ブランド</th><th>クラス</th>
+            <th>売価</th><th>在庫数</th><th>提供</th><th>入手</th><th>操作</th>
+          </tr></thead>
+          <tbody id="tb-bottles"><tr><td colspan="9" class="ec"><span class="spin"></span></td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- 地区モーダル -->
+<div class="mbg" id="m-district">
+  <div class="modal">
+    <div class="mhead"><div class="mtitle" id="mt-district">地区登録</div><button class="mx" onclick="closeM('m-district')">✕</button></div>
+    <div class="mbody">
+      <div class="frow">
+        <div class="fg"><label class="fl">地区ID（2桁）<span class="req">*</span></label>
+          <input class="fi" id="d-id" placeholder="11" maxlength="2" oninput="this.value=this.value.replace(/\D/g,'')"></div>
+        <div class="fg"><label class="fl">地区名<span class="req">*</span></label>
+          <input class="fi" id="d-name" placeholder="Jalisco (Valles)"></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn bg" onclick="closeM('m-district')">キャンセル</button>
+      <button class="btn bp" onclick="saveDistrict()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 所在地モーダル -->
+<div class="mbg" id="m-location">
+  <div class="modal">
+    <div class="mhead"><div class="mtitle" id="mt-location">所在地登録</div><button class="mx" onclick="closeM('m-location')">✕</button></div>
+    <div class="mbody">
+      <div class="keybox" id="kb-loc">—<span class="klabel">locationId</span></div>
+      <div class="frow">
+        <div class="fg"><label class="fl">地区<span class="req">*</span></label>
+          <select class="fs" id="loc-dist" onchange="updateLocKey()"><option value="">選択...</option></select></div>
+        <div class="fg"><label class="fl">連番（01〜99）<span class="req">*</span></label>
+          <input class="fi" id="loc-seq" placeholder="01" maxlength="2" oninput="this.value=this.value.replace(/\D/g,'');updateLocKey()"></div>
+      </div>
+      <div class="fg full"><label class="fl">所在地名<span class="req">*</span></label>
+        <input class="fi" id="loc-name" placeholder="Amatitán"></div>
+      <div class="frow">
+        <div class="fg"><label class="fl">緯度</label><input class="fi" id="loc-lat" type="number" step="0.000001" placeholder="20.8333"></div>
+        <div class="fg"><label class="fl">経度</label><input class="fi" id="loc-lng" type="number" step="0.000001" placeholder="-103.7167"></div>
+      </div>
+      <div class="fg"><label class="fl">詳細情報URL</label><input class="fi" id="loc-url" type="url" placeholder="https://..."></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn bg" onclick="closeM('m-location')">キャンセル</button>
+      <button class="btn bp" onclick="saveLocation()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 蒸留所モーダル -->
+<div class="mbg" id="m-distillery">
+  <div class="modal">
+    <div class="mhead"><div class="mtitle" id="mt-distillery">蒸留所登録</div><button class="mx" onclick="closeM('m-distillery')">✕</button></div>
+    <div class="mbody">
+      <div class="fg"><label class="fl">NOM番号（4桁）<span class="req">*</span></label>
+        <input class="fi" id="dis-nom" placeholder="1079" maxlength="4" oninput="this.value=this.value.replace(/\D/g,'')"></div>
+      <div class="frow">
+        <div class="fg"><label class="fl">蒸留所名（スペイン語）<span class="req">*</span></label>
+          <input class="fi" id="dis-es" placeholder="Casa Herradura"></div>
+        <div class="fg"><label class="fl">蒸留所名（日本語）</label>
+          <input class="fi" id="dis-ja" placeholder="カサ・エラドゥーラ"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">地区<span class="req">*</span></label>
+          <select class="fs" id="dis-dist" onchange="filterLocationsByDistrict('dis-loc','dis-dist')"><option value="">選択...</option></select></div>
+        <div class="fg"><label class="fl">所在地</label>
+          <select class="fs" id="dis-loc"><option value="">選択...</option></select></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn bg" onclick="closeM('m-distillery')">キャンセル</button>
+      <button class="btn bp" onclick="saveDistillery()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ブランドモーダル -->
+<div class="mbg" id="m-brand">
+  <div class="modal">
+    <div class="mhead"><div class="mtitle" id="mt-brand">ブランド登録</div><button class="mx" onclick="closeM('m-brand')">✕</button></div>
+    <div class="mbody">
+      <div class="keybox" id="kb-brand">—<span class="klabel">brandId</span></div>
+      <div class="frow c3">
+        <div class="fg"><label class="fl">NOM番号<span class="req">*</span></label>
+          <input class="fi" id="br-nom" placeholder="1079" maxlength="4" oninput="this.value=this.value.replace(/\D/g,'');updateBrandKey()"></div>
+        <div class="fg"><label class="fl">区分<span class="req">*</span></label>
+          <select class="fs" id="br-type" onchange="updateBrandKey()">
+            <option value="0">0: 蒸留所ブランド</option><option value="1">1: 委託ブランド</option></select></div>
+        <div class="fg"><label class="fl">連番（001〜999）<span class="req">*</span></label>
+          <input class="fi" id="br-seq" placeholder="001" maxlength="3" oninput="this.value=this.value.replace(/\D/g,'');updateBrandKey()"></div>
+      </div>
+      <div class="fg"><label class="fl">状態<span class="req">*</span></label>
+        <select class="fs" id="br-st" onchange="updateBrandKey()">
+          <option value="0">0: 稼働中</option><option value="1">1: 終売</option></select></div>
+      <hr class="fsep">
+      <div class="frow">
+        <div class="fg"><label class="fl">ブランド名（スペイン語）<span class="req">*</span></label>
+          <input class="fi" id="br-es" placeholder="Herradura"></div>
+        <div class="fg"><label class="fl">ブランド名（日本語）</label>
+          <input class="fi" id="br-ja" placeholder="エラドゥーラ"></div>
+      </div>
+      <div class="fg"><label class="fl">詳細情報URL</label>
+        <input class="fi" id="br-info" type="url" placeholder="https://..."></div>
+      <div class="fg"><label class="fl">AMMブランドページURL</label>
+        <input class="fi" id="br-amm" type="url" placeholder="https://www.ammex.org/..."></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn bg" onclick="closeM('m-brand')">キャンセル</button>
+      <button class="btn bp" onclick="saveBrand()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- クラスモーダル -->
+<div class="mbg" id="m-class">
+  <div class="modal">
+    <div class="mhead"><div class="mtitle" id="mt-class">クラス登録</div><button class="mx" onclick="closeM('m-class')">✕</button></div>
+    <div class="mbody">
+      <div class="keybox" id="kb-class">—<span class="klabel">classId</span></div>
+      <div class="frow c4">
+        <div class="fg"><label class="fl">カテゴリ<span class="req">*</span></label>
+          <select class="fs" id="cl-cat" onchange="updateClassKey()">
+            <option value="0">0: 100% Agave</option><option value="1">1: Mixto</option></select></div>
+        <div class="fg"><label class="fl">クラス<span class="req">*</span></label>
+          <select class="fs" id="cl-cls" onchange="updateClassKey()">
+            <option value="1">1: Blanco</option><option value="2">2: Joven/Gold</option>
+            <option value="3">3: Reposado</option><option value="4">4: Añejo</option>
+            <option value="5">5: Extra Añejo</option></select></div>
+        <div class="fg"><label class="fl">濾過<span class="req">*</span></label>
+          <select class="fs" id="cl-flt" onchange="updateClassKey()">
+            <option value="0">0: 通常濾過</option><option value="1">1: 色素濾過</option></select></div>
+        <div class="fg"><label class="fl">添加物<span class="req">*</span></label>
+          <select class="fs" id="cl-add" onchange="updateClassKey()">
+            <option value="0">0: 不明</option><option value="1">1: 無添加</option></select></div>
+      </div>
+      <div class="fg"><label class="fl">クラス名<span class="req">*</span></label>
+        <input class="fi" id="cl-name" placeholder="Blanco 100% Agave"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn bg" onclick="closeM('m-class')">キャンセル</button>
+      <button class="btn bp" onclick="saveClass()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ボトルモーダル -->
+<div class="mbg" id="m-bottle">
+  <div class="modal modal-lg">
+    <div class="mhead"><div class="mtitle" id="mt-bottle">ボトル登録</div><button class="mx" onclick="closeM('m-bottle')">✕</button></div>
+    <div class="mbody">
+      <div class="keybox" id="kb-bottle">—<span class="klabel">bottleId</span></div>
+      <div class="frow c3">
+        <div class="fg"><label class="fl">ブランドID（9桁）<span class="req">*</span></label>
+          <input class="fi" id="bt-brand" placeholder="107900010" maxlength="9" oninput="updateBottleKey()"></div>
+        <div class="fg"><label class="fl">クラスID（4桁）<span class="req">*</span></label>
+          <input class="fi" id="bt-class" placeholder="0100" maxlength="4" oninput="updateBottleKey()"></div>
+        <div class="fg"><label class="fl">連番（001〜999）<span class="req">*</span></label>
+          <input class="fi" id="bt-seq" placeholder="001" maxlength="3" oninput="updateBottleKey()"></div>
+      </div>
+      <hr class="fsep">
+      <div class="frow">
+        <div class="fg"><label class="fl">ボトル名（スペイン語）</label>
+          <input class="fi" id="bt-es" placeholder="Herradura Silver"></div>
+        <div class="fg"><label class="fl">ボトル名（日本語）</label>
+          <input class="fi" id="bt-ja" placeholder="エラドゥーラ シルバー"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">ロット番号（10桁）</label>
+          <input class="fi" id="bt-lot" placeholder="AB1234567X" maxlength="10"></div>
+        <div class="fg"><label class="fl">提供単位</label>
+          <input class="fi" id="bt-unit" placeholder="30ml / 1杯"></div>
+      </div>
+      <hr class="fsep">
+      <div class="frow c3">
+        <div class="fg"><label class="fl">売価（円）</label>
+          <input class="fi" id="bt-sell" type="number" min="0" placeholder="1500"></div>
+        <div class="fg"><label class="fl">仕入価格（円）</label>
+          <input class="fi" id="bt-buy" type="number" min="0" placeholder="800"></div>
+        <div class="fg"><label class="fl">実勢価格（円）</label>
+          <input class="fi" id="bt-market" type="number" min="0" placeholder="2000"></div>
+      </div>
+      <div class="frow c4">
+        <div class="fg"><label class="fl">仕入区分</label>
+          <select class="fs" id="bt-import">
+            <option value="0">0: 国内仕入</option><option value="1">1: 海外仕入</option></select></div>
+        <div class="fg"><label class="fl">再入手区分</label>
+          <select class="fs" id="bt-avail">
+            <option value="0">0: 入手可</option><option value="1">1: 入手困難</option><option value="2">2: 入手不可</option></select></div>
+        <div class="fg"><label class="fl">提供区分</label>
+          <select class="fs" id="bt-serve">
+            <option value="0">0: 提供中</option><option value="1">1: 提供停止</option></select></div>
+        <div class="fg"><label class="fl">在庫数</label>
+          <input class="fi" id="bt-stock" type="number" min="0" value="0"></div>
+      </div>
+      <div class="fg"><label class="fl">開封年月日</label>
+        <input class="fi" id="bt-opened" type="date"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn bg" onclick="closeM('m-bottle')">キャンセル</button>
+      <button class="btn bp" onclick="saveBottle()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 削除確認 -->
+<div class="confirm-box" id="confirm-box">
+  <div class="confirm-card">
+    <div class="confirm-msg" id="confirm-msg">このデータを削除しますか？</div>
+    <div class="confirm-acts">
+      <button class="btn bg" onclick="closeConfirm()">キャンセル</button>
+      <button class="btn bd" id="confirm-ok">削除する</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<!-- FIREBASE -->
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════
+// ⚠️  Firebase 設定をここに入力してください
+// ══════════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyD6a3i-N1RyXyAfXmztPQrYtx4x62YGth0",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID",
+};
+
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ── マスタ定数 ────────────────────────────────────────
+const DISTRICTS   = {"11":"Jalisco (Valles)","12":"Jalisco (Los Altos)","13":"Jalisco (Other)","20":"Michoacán","30":"Guanajuato","40":"Nayarit","50":"Tamaulipas"};
+const BRAND_TYPE  = {"0":"蒸留所ブランド","1":"委託ブランド"};
+const BRAND_ST    = {"0":"稼働中","1":"終売"};
+const CLASS_CAT   = {"0":"100% Agave","1":"Mixto"};
+const CLASS_CLS   = {"1":"Blanco","2":"Joven / Gold","3":"Reposado","4":"Añejo","5":"Extra Añejo"};
+const CLASS_FLT   = {"0":"通常濾過","1":"色素濾過"};
+const CLASS_ADD   = {"0":"不明","1":"無添加"};
+const IMPORT_T    = {"0":"国内仕入","1":"海外仕入"};
+const AVAIL       = {"0":"入手可","1":"入手困難","2":"入手不可"};
+const SERVE_ST    = {"0":"提供中","1":"提供停止"};
+
+// ── キャッシュ ────────────────────────────────────────
+let cache = { districts:[], locations:[], distilleries:[], brands:[], classes:[], bottles:[] };
+let editId = { district:null, location:null, distillery:null, brand:null, class:null, bottle:null };
+
+// ── ユーティリティ ─────────────────────────────────────
+function toast(msg, type="ok") {
+  const c = document.getElementById("toasts");
+  const el = document.createElement("div");
+  el.className = `toast t${type}`;
+  el.textContent = (type==="ok"?"✓ ":type==="err"?"✕ ":"ℹ ") + msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function v(id)      { return document.getElementById(id)?.value?.trim() ?? ""; }
+function sv(id, val){ const el = document.getElementById(id); if(el) el.value = val ?? ""; }
+window.closeM = function(id) { document.getElementById(id).classList.remove("open"); };
+function closeM(id) { window.closeM(id); }
+window.openM = function(id) { document.getElementById(id).classList.add("open"); };
+function openM(id) { window.openM(id); }
+
+let _confirmCb = null;
+function confirm_(msg, cb) {
+  document.getElementById("confirm-msg").textContent = msg;
+  _confirmCb = cb;
+  document.getElementById("confirm-box").classList.add("open");
+}
+window.closeConfirm = () => { document.getElementById("confirm-box").classList.remove("open"); _confirmCb = null; };
+document.getElementById("confirm-ok").onclick = () => { _confirmCb?.(); closeConfirm(); };
+
+function badge(text, cls) { return `<span class="badge ${cls}">${text}</span>`; }
+function link(url, label) {
+  if (!url) return '<span class="dim">—</span>';
+  return `<a href="${url}" target="_blank" style="color:var(--gold-d);font-size:11px">${label}</a>`;
+}
+function setCount(key, n) {
+  const el = document.getElementById(`cnt-${key}`);
+  if (el) el.textContent = n;
+}
+
+// ── 認証 ──────────────────────────────────────────────
+auth.onAuthStateChanged( async user => {
+  if (user) {
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    document.getElementById("temail").textContent = user.email;
+    await loadAll();
+  } else {
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("app").style.display = "none";
+  }
+});
+window.doLogin = async () => {
+  document.getElementById("lerr").textContent = "";
+  try { await auth.signInWithEmailAndPassword( v("lemail"), document.getElementById("lpass").value); }
+  catch { document.getElementById("lerr").textContent = "メールアドレスまたはパスワードが正しくありません"; }
+};
+window.doLogout = () => auth.signOut();
+document.getElementById("lpass").addEventListener("keydown", e => { if(e.key==="Enter") doLogin(); });
+
+// ── ナビゲーション ─────────────────────────────────────
+window.showPage = id => {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.getElementById(`page-${id}`)?.classList.add("active");
+  document.getElementById(`tab-${id}`)?.classList.add("active");
+};
+
+// ── 全データロード ─────────────────────────────────────
+async function loadAll() {
+  await Promise.all([
+    load("districts","districtId"), load("locations","locationId"),
+    load("distilleries","nom"),     load("brands","brandId"),
+    load("classes","classId"),      load("bottles","bottleId"),
+  ]);
+  populateAllSelects();
+}
+async function load(col, _key) {
+  const snap = await db.collection(col).get();
+  cache[col] = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  setCount(col, cache[col].length);
+  render(col);
+}
+
+// ── セレクト補完 ───────────────────────────────────────
+function populateAllSelects() {
+  // 地区セレクト（全箇所）
+  const distOpts = `<option value="">選択...</option>` +
+    cache.districts.map(d => `<option value="${d.id}">${d.id} — ${d.districtName}</option>`).join("");
+  ["f-loc-dist","f-dis-dist","loc-dist","dis-dist"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = (id.startsWith("f-") ? `<option value="">全地区</option>` : `<option value="">選択...</option>`) +
+      cache.districts.map(d => `<option value="${d.id}">${d.id} — ${d.districtName}</option>`).join("");
+  });
+}
+
+window.filterLocationsByDistrict = (locSelId, distSelId) => {
+  const distId = v(distSelId);
+  const sel = document.getElementById(locSelId);
+  if (!sel) return;
+  const locs = cache.locations.filter(l => !distId || l.districtId === distId);
+  sel.innerHTML = `<option value="">選択...</option>` +
+    locs.map(l => `<option value="${l.id}">${l.id} — ${l.locationName}</option>`).join("");
+};
+
+// ── キービルダー ───────────────────────────────────────
+window.updateLocKey = () => {
+  const dist = v("loc-dist"), seq = v("loc-seq").padStart(2,"0");
+  const key = dist && seq ? dist + seq : "—";
+  const el = document.getElementById("kb-loc");
+  el.innerHTML = dist && seq
+    ? `<span class="keypart kp-nom">${dist}</span><span class="keypart kp-seq">${seq}</span><span class="klabel">locationId</span>`
+    : `—<span class="klabel">locationId</span>`;
+};
+
+window.updateBrandKey = () => {
+  const nom=v("br-nom").padStart(4,"0"), type=v("br-type"),
+        seq=v("br-seq").padStart(3,"0"), st=v("br-st");
+  const el = document.getElementById("kb-brand");
+  if (nom.replace(/^0+/,"") && seq.replace(/^0+/,"")) {
+    el.innerHTML = `<span class="keypart kp-nom">${nom}</span><span class="keypart kp-type">${type}</span><span class="keypart kp-seq">${seq}</span><span class="keypart kp-st">${st}</span><span class="klabel">brandId</span>`;
+  } else el.innerHTML = `—<span class="klabel">brandId</span>`;
+};
+
+window.updateClassKey = () => {
+  const cat=v("cl-cat"),cls=v("cl-cls"),flt=v("cl-flt"),add=v("cl-add");
+  document.getElementById("kb-class").innerHTML =
+    `<span class="keypart kp-cat">${cat}</span><span class="keypart kp-cls">${cls}</span><span class="keypart kp-flt">${flt}</span><span class="keypart kp-add">${add}</span><span class="klabel">classId</span>`;
+};
+
+window.updateBottleKey = () => {
+  const br=v("bt-brand"), cl=v("bt-class"), seq=v("bt-seq").padStart(3,"0");
+  const el = document.getElementById("kb-bottle");
+  if (br.length===9 && cl.length===4 && seq.replace(/^0+/,"")) {
+    el.innerHTML = `<span class="keypart kp-nom">${br.slice(0,4)}</span><span class="keypart kp-type">${br.slice(4,5)}</span><span class="keypart kp-seq">${br.slice(5,8)}</span><span class="keypart kp-st">${br.slice(8)}</span><span class="keypart kp-cls">${cl}</span><span class="keypart kp-flt">${seq}</span><span class="klabel">bottleId</span>`;
+  } else el.innerHTML = `—<span class="klabel">bottleId</span>`;
+};
+
+// ── フィルター ─────────────────────────────────────────
+window.filterTable = col => render(col);
+
+function filtered(col) {
+  let list = [...cache[col]];
+  if (col==="locations") {
+    const q=document.getElementById("s-loc")?.value.toLowerCase()||"";
+    const d=v("f-loc-dist");
+    list = list.filter(r=>(!q||(r.locationName||"").toLowerCase().includes(q))&&(!d||r.districtId===d));
+  } else if (col==="distilleries") {
+    const q=document.getElementById("s-dis")?.value.toLowerCase()||"";
+    const d=v("f-dis-dist");
+    list = list.filter(r=>(!q||(r.nom||"").includes(q)||(r.nomEs||"").toLowerCase().includes(q)||(r.nomJa||"").toLowerCase().includes(q))&&(!d||r.districtId===d));
+  } else if (col==="brands") {
+    const q=document.getElementById("s-br")?.value.toLowerCase()||"";
+    const t=v("f-br-type"), s=v("f-br-st");
+    list = list.filter(r=>{
+      const nom=r.id.slice(0,4), type=r.id[4], st=r.id[8];
+      return (!q||nom.includes(q)||(r.brandEs||"").toLowerCase().includes(q)||(r.brandJa||"").toLowerCase().includes(q))&&(!t||type===t)&&(!s||st===s);
+    });
+  } else if (col==="classes") {
+    const cat=v("f-cl-cat"), cls=v("f-cl-cls");
+    list = list.filter(r=>(!cat||r.id[0]===cat)&&(!cls||r.id[1]===cls));
+  } else if (col==="bottles") {
+    const q=document.getElementById("s-bt")?.value.toLowerCase()||"";
+    const srv=v("f-bt-srv"), stk=v("f-bt-stk"), avl=v("f-bt-avail");
+    list = list.filter(r=>{
+      const matchQ=!q||(r.bottleJa||"").toLowerCase().includes(q)||(r.bottleEs||"").toLowerCase().includes(q)||(r.brandId||"").includes(q);
+      const matchSrv=!srv||r.serveStatus===srv;
+      const matchStk=stk===""||true||(stk==="1"?(r.stockCount||0)>0:(r.stockCount||0)===0);
+      const matchAvl=!avl||r.availability===avl;
+      return matchQ&&matchSrv&&matchStk&&matchAvl;
+    });
+  }
+  return list;
+}
+
+// ── レンダリング ───────────────────────────────────────
+function render(col) {
+  const list = filtered(col);
+  const tb = document.getElementById(`tb-${col}`);
+  if (!tb) return;
+  if (!list.length) { tb.innerHTML=`<tr><td colspan="20" class="ec">データがありません</td></tr>`; return; }
+
+  if (col==="districts") {
+    tb.innerHTML = list.map(r=>`<tr>
+      <td class="mono">${r.id}</td>
+      <td>${r.districtName||"—"}</td>
+      <td><div class="acts">
+        <button class="btn bs sm" onclick="openDistrictModal('${r.id}')">編集</button>
+        <button class="btn bd sm" onclick="del('districts','${r.id}','地区')">削除</button>
+      </div></td></tr>`).join("");
+
+  } else if (col==="locations") {
+    tb.innerHTML = list.map(r=>{
+      const dn = cache.districts.find(d=>d.id===r.districtId)?.districtName||r.districtId||"—";
+      return `<tr>
+        <td class="mono">${r.id}</td><td class="dim" style="font-size:11px">${dn}</td>
+        <td>${r.locationName||"—"}</td>
+        <td class="mono dim">${r.latitude||"—"}</td><td class="mono dim">${r.longitude||"—"}</td>
+        <td>${link(r.infoUrl,"リンク")}</td>
+        <td><div class="acts">
+          <button class="btn bs sm" onclick="openLocationModal('${r.id}')">編集</button>
+          <button class="btn bd sm" onclick="del('locations','${r.id}','所在地')">削除</button>
+        </div></td></tr>`;}).join("");
+
+  } else if (col==="distilleries") {
+    tb.innerHTML = list.map(r=>{
+      const dn = cache.districts.find(d=>d.id===r.districtId)?.districtName||r.districtId||"—";
+      const ln = cache.locations.find(l=>l.id===r.locationId)?.locationName||r.locationId||"—";
+      return `<tr>
+        <td class="mono">${r.nom||r.id}</td>
+        <td>${r.nomEs||"—"}</td><td class="dim">${r.nomJa||"—"}</td>
+        <td style="font-size:11px" class="dim">${dn}</td>
+        <td style="font-size:11px" class="dim">${ln}</td>
+        <td><div class="acts">
+          <button class="btn bs sm" onclick="openDistilleryModal('${r.id}')">編集</button>
+          <button class="btn bd sm" onclick="del('distilleries','${r.id}','蒸留所')">削除</button>
+        </div></td></tr>`;}).join("");
+
+  } else if (col==="brands") {
+    tb.innerHTML = list.map(r=>{
+      const type=r.id[4], st=r.id[8];
+      return `<tr>
+        <td class="mono" style="font-size:11px">${r.id}</td>
+        <td class="mono">${r.id.slice(0,4)}</td>
+        <td>${badge(BRAND_TYPE[type]||type, type==="0"?"bg-teal":"bg-gray")}</td>
+        <td>${r.brandEs||"—"}</td><td class="dim">${r.brandJa||"—"}</td>
+        <td>${badge(BRAND_ST[st]||st, st==="0"?"bg-teal":"bg-red")}</td>
+        <td>${link(r.ammUrl,"AMM")}</td>
+        <td><div class="acts">
+          <button class="btn bs sm" onclick="openBrandModal('${r.id}')">編集</button>
+          <button class="btn bd sm" onclick="del('brands','${r.id}','ブランド')">削除</button>
+        </div></td></tr>`;}).join("");
+
+  } else if (col==="classes") {
+    tb.innerHTML = list.map(r=>{
+      const [cat,cls,flt,add] = r.id.split("");
+      return `<tr>
+        <td class="mono">${r.id}</td>
+        <td>${badge(CLASS_CAT[cat]||cat, cat==="0"?"bg-teal":"bg-gray")}</td>
+        <td>${badge(CLASS_CLS[cls]||cls,"bg-gold")}</td>
+        <td class="dim" style="font-size:11px">${CLASS_FLT[flt]||flt}</td>
+        <td class="dim" style="font-size:11px">${CLASS_ADD[add]||add}</td>
+        <td>${r.className||"—"}</td>
+        <td><div class="acts">
+          <button class="btn bs sm" onclick="openClassModal('${r.id}')">編集</button>
+          <button class="btn bd sm" onclick="del('classes','${r.id}','クラス')">削除</button>
+        </div></td></tr>`;}).join("");
+
+  } else if (col==="bottles") {
+    tb.innerHTML = list.map(r=>{
+      const br = cache.brands.find(b=>b.id===r.brandId);
+      const cl = cache.classes.find(c=>c.id===r.classId);
+      const srvBadge = r.serveStatus==="0"?badge("提供中","bg-teal"):badge("提供停止","bg-red");
+      const avlBadge = r.availability==="0"?badge("入手可","bg-teal"):r.availability==="1"?badge("入手困難","bg-gold"):badge("入手不可","bg-red");
+      return `<tr>
+        <td class="mono" style="font-size:10px">${r.id}</td>
+        <td>${r.bottleJa||r.bottleEs||"—"}</td>
+        <td class="dim" style="font-size:11px">${br?.brandJa||br?.brandEs||r.brandId||"—"}</td>
+        <td class="dim" style="font-size:11px">${cl?.className||r.classId||"—"}</td>
+        <td class="mono">¥${(r.sellingPrice||0).toLocaleString()}</td>
+        <td class="mono" style="text-align:center">${r.stockCount??0}</td>
+        <td>${srvBadge}</td><td>${avlBadge}</td>
+        <td><div class="acts">
+          <button class="btn bs sm" onclick="openBottleModal('${r.id}')">編集</button>
+          <button class="btn bd sm" onclick="del('bottles','${r.id}','ボトル')">削除</button>
+        </div></td></tr>`;}).join("");
+  }
+}
+
+// ── 削除 ──────────────────────────────────────────────
+window.del = (col, id, label) => {
+  confirm_(`「${id}」の${label}データを削除しますか？`, async () => {
+    try { await db.collection(col).doc(id).delete(); toast(`${label}を削除しました`); load(col); }
+    catch(e) { toast(`削除失敗: ${e.message}`,"err"); }
+  });
+};
+
+// ══════════════════════════════════════════════════════
+// 地区マスタ CRUD
+// ══════════════════════════════════════════════════════
+window.openDistrictModal = (id=null) => {
+  editId.district = id;
+  document.getElementById("mt-district").textContent = id ? "地区編集" : "地区登録";
+  if (id) { const r=cache.districts.find(d=>d.id===id); sv("d-id",r?.id); sv("d-name",r?.districtName); }
+  else    { sv("d-id",""); sv("d-name",""); }
+  openM("m-district");
+};
+window.saveDistrict = async () => {
+  const id = v("d-id"), name = v("d-name");
+  if (!id || id.length!==2 || !name) { toast("地区ID（2桁）と地区名は必須です","err"); return; }
+  try {
+    await db.collection("districts").doc(id).set({ districtId:id, districtName:name }, {merge:true});
+    toast(editId.district ? "地区を更新しました" : "地区を登録しました");
+    closeM("m-district"); load("districts");
+  } catch(e) { toast("保存失敗: "+e.message,"err"); }
+};
+
+// ══════════════════════════════════════════════════════
+// 所在地マスタ CRUD
+// ══════════════════════════════════════════════════════
+
+
+
+window.openLocationModal = (id=null) => {
+  editId.location = id;
+  document.getElementById("mt-location").textContent = id ? "所在地編集" : "所在地登録";
+  populateAllSelects();
+  if (id) {
+    const r=cache.locations.find(l=>l.id===id);
+    sv("loc-dist",r?.districtId); sv("loc-seq",r?.id?.slice(2));
+    sv("loc-name",r?.locationName); sv("loc-lat",r?.latitude); sv("loc-lng",r?.longitude); sv("loc-url",r?.infoUrl);
+    document.getElementById("kb-loc").innerHTML = `<span class="keypart kp-nom">${r?.districtId||""}</span><span class="keypart kp-seq">${r?.id?.slice(2)||""}</span><span class="klabel">locationId</span>`;
+  } else {
+    ["loc-dist","loc-seq","loc-name","loc-lat","loc-lng","loc-url"].forEach(i=>sv(i,""));
+    document.getElementById("kb-loc").innerHTML = `—<span class="klabel">locationId</span>`;
+  }
+  openM("m-location");
+};
+window.saveLocation = async () => {
+  const dist=v("loc-dist"), seq=v("loc-seq").padStart(2,"0"), name=v("loc-name");
+  if (!dist||!seq.replace(/^0+/,"")||!name) { toast("地区・連番・所在地名は必須です","err"); return; }
+  const id = dist+seq;
+  try {
+    await db.collection("locations").doc(id).set({
+      locationId:id, districtId:dist, locationName:name,
+      latitude: parseFloat(v("loc-lat"))||null, longitude:parseFloat(v("loc-lng"))||null,
+      infoUrl:v("loc-url")||null,
+    }, {merge:true});
+    toast(editId.location ? "所在地を更新しました" : "所在地を登録しました");
+    closeM("m-location"); load("locations");
+  } catch(e) { toast("保存失敗: "+e.message,"err"); }
+};
+
+// ══════════════════════════════════════════════════════
+// 蒸留所マスタ CRUD
+// ══════════════════════════════════════════════════════
+window.openDistilleryModal = (id=null) => {
+  editId.distillery = id;
+  document.getElementById("mt-distillery").textContent = id ? "蒸留所編集" : "蒸留所登録";
+  populateAllSelects();
+  if (id) {
+    const r=cache.distilleries.find(d=>d.id===id);
+    sv("dis-nom",r?.nom||r?.id); sv("dis-es",r?.nomEs); sv("dis-ja",r?.nomJa);
+    sv("dis-dist",r?.districtId); filterLocationsByDistrict("dis-loc","dis-dist"); sv("dis-loc",r?.locationId);
+  } else {
+    ["dis-nom","dis-es","dis-ja","dis-dist","dis-loc"].forEach(i=>sv(i,""));
+  }
+  openM("m-distillery");
+};
+window.saveDistillery = async () => {
+  const nom=v("dis-nom"), es=v("dis-es"), dist=v("dis-dist");
+  if (!nom||nom.length!==4||!es||!dist) { toast("NOM（4桁）・蒸留所名(ES)・地区は必須です","err"); return; }
+  try {
+    await db.collection("distilleries").doc(nom).set({
+      nom, nomEs:es, nomJa:v("dis-ja")||null,
+      districtId:dist, locationId:v("dis-loc")||null,
+    }, {merge:true});
+    toast(editId.distillery ? "蒸留所を更新しました" : "蒸留所を登録しました");
+    closeM("m-distillery"); load("distilleries");
+  } catch(e) { toast("保存失敗: "+e.message,"err"); }
+};
+
+// ══════════════════════════════════════════════════════
+// ブランドマスタ CRUD
+// ══════════════════════════════════════════════════════
+window.openBrandModal = (id=null) => {
+  editId.brand = id;
+  document.getElementById("mt-brand").textContent = id ? "ブランド編集" : "ブランド登録";
+  if (id) {
+    const r=cache.brands.find(b=>b.id===id);
+    sv("br-nom",id.slice(0,4)); sv("br-type",id[4]); sv("br-seq",id.slice(5,8)); sv("br-st",id[8]);
+    sv("br-es",r?.brandEs); sv("br-ja",r?.brandJa); sv("br-info",r?.infoUrl); sv("br-amm",r?.ammUrl);
+    updateBrandKey();
+  } else {
+    ["br-nom","br-es","br-ja","br-info","br-amm"].forEach(i=>sv(i,""));
+    sv("br-type","0"); sv("br-seq","001"); sv("br-st","0"); updateBrandKey();
+  }
+  openM("m-brand");
+};
+window.saveBrand = async () => {
+  const nom=v("br-nom").padStart(4,"0"), type=v("br-type"),
+        seq=v("br-seq").padStart(3,"0"), st=v("br-st"), es=v("br-es");
+  if (nom.replace(/^0+/,"")===""||!seq.replace(/^0+/,"")||!es) { toast("NOM・連番・ブランド名(ES)は必須です","err"); return; }
+  const id = nom+type+seq+st;
+  try {
+    await db.collection("brands").doc(id).set({
+      brandId:id, brandEs:es, brandJa:v("br-ja")||null,
+      infoUrl:v("br-info")||null, ammUrl:v("br-amm")||null,
+    }, {merge:true});
+    toast(editId.brand ? "ブランドを更新しました" : "ブランドを登録しました");
+    closeM("m-brand"); load("brands");
+  } catch(e) { toast("保存失敗: "+e.message,"err"); }
+};
+
+// ══════════════════════════════════════════════════════
+// クラスマスタ CRUD
+// ══════════════════════════════════════════════════════
+window.openClassModal = (id=null) => {
+  editId.class = id;
+  document.getElementById("mt-class").textContent = id ? "クラス編集" : "クラス登録";
+  if (id) {
+    const r=cache.classes.find(c=>c.id===id);
+    sv("cl-cat",id[0]); sv("cl-cls",id[1]); sv("cl-flt",id[2]); sv("cl-add",id[3]);
+    sv("cl-name",r?.className);
+  } else {
+    sv("cl-cat","0"); sv("cl-cls","1"); sv("cl-flt","0"); sv("cl-add","0"); sv("cl-name","");
+  }
+  updateClassKey();
+  openM("m-class");
+};
+window.saveClass = async () => {
+  const cat=v("cl-cat"),cls=v("cl-cls"),flt=v("cl-flt"),add=v("cl-add"),name=v("cl-name");
+  if (!name) { toast("クラス名は必須です","err"); return; }
+  const id = cat+cls+flt+add;
+  try {
+    await db.collection("classes").doc(id).set({ classId:id, className:name }, {merge:true});
+    toast(editId.class ? "クラスを更新しました" : "クラスを登録しました");
+    closeM("m-class"); load("classes");
+  } catch(e) { toast("保存失敗: "+e.message,"err"); }
+};
+
+// ══════════════════════════════════════════════════════
+// ボトルデータ CRUD
+// ══════════════════════════════════════════════════════
+window.openBottleModal = (id=null) => {
+  editId.bottle = id;
+  document.getElementById("mt-bottle").textContent = id ? "ボトル編集" : "ボトル登録";
+  if (id) {
+    const r=cache.bottles.find(b=>b.id===id);
+    sv("bt-brand",r?.brandId); sv("bt-class",r?.classId); sv("bt-seq",r?.seq);
+    sv("bt-es",r?.bottleEs); sv("bt-ja",r?.bottleJa); sv("bt-lot",r?.lotNo);
+    sv("bt-unit",r?.serveUnit); sv("bt-sell",r?.sellingPrice); sv("bt-buy",r?.purchasePrice);
+    sv("bt-market",r?.marketPrice); sv("bt-import",r?.importType||"0");
+    sv("bt-avail",r?.availability||"0"); sv("bt-serve",r?.serveStatus||"0");
+    sv("bt-stock",r?.stockCount??0); sv("bt-opened",r?.openedDate||"");
+    updateBottleKey();
+  } else {
+    ["bt-brand","bt-class","bt-seq","bt-es","bt-ja","bt-lot","bt-unit",
+     "bt-sell","bt-buy","bt-market","bt-opened"].forEach(i=>sv(i,""));
+    sv("bt-import","0"); sv("bt-avail","0"); sv("bt-serve","0"); sv("bt-stock","0");
+    document.getElementById("kb-bottle").innerHTML = `—<span class="klabel">bottleId</span>`;
+  }
+  openM("m-bottle");
+};
+window.saveBottle = async () => {
+  const brandId=v("bt-brand"), classId=v("bt-class"), seq=v("bt-seq").padStart(3,"0");
+  if (brandId.length!==9||classId.length!==4||!seq.replace(/^0+/,""))
+    { toast("ブランドID(9桁)・クラスID(4桁)・連番は必須です","err"); return; }
+  const id = brandId+classId+seq;
+  try {
+    await db.collection("bottles").doc(id).set({
+      bottleId:id, brandId, classId, seq,
+      bottleEs:v("bt-es")||null, bottleJa:v("bt-ja")||null,
+      lotNo:v("bt-lot")||null, serveUnit:v("bt-unit")||null,
+      sellingPrice:parseInt(v("bt-sell"))||0, purchasePrice:parseInt(v("bt-buy"))||0,
+      marketPrice:parseInt(v("bt-market"))||0,
+      importType:v("bt-import"), availability:v("bt-avail"),
+      serveStatus:v("bt-serve"), stockCount:parseInt(v("bt-stock"))||0,
+      openedDate:v("bt-opened")||null,
+    }, {merge:true});
+    toast(editId.bottle ? "ボトルを更新しました" : "ボトルを登録しました");
+    closeM("m-bottle"); load("bottles");
+  } catch(e) { toast("保存失敗: "+e.message,"err"); }
+};
+
+// モーダル外クリックで閉じる
+document.querySelectorAll(".mbg").forEach(bg => {
+  bg.addEventListener("click", e => { if(e.target===bg) bg.classList.remove("open"); });
+});
+</script>
+</body>
+</html>
