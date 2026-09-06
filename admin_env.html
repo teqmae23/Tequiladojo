@@ -92,6 +92,7 @@ td:first-child,th:first-child{text-align:center;}
   <div class="tabs">
     <button class="tab-btn active" data-tab="daily" onclick="switchTab('daily')">日別（時間毎）</button>
     <button class="tab-btn" data-tab="monthly" onclick="switchTab('monthly')">月次分析</button>
+    <button class="tab-btn" data-tab="biz" onclick="switchTab('biz')">営業データ</button>
   </div>
   <div class="legend-note">実線＝店内（SwitchBot）／破線＝外気（千葉市中央区長洲1丁目・Open-Meteo）</div>
 
@@ -124,6 +125,27 @@ td:first-child,th:first-child{text-align:center;}
       <table id="m-table"><thead><tr><th>日</th><th>店内平均℃</th><th>店内℃幅</th><th>店内平均%</th><th>外気平均℃</th><th>外気平均%</th><th>件数</th></tr></thead><tbody></tbody></table>
     </div>
     <div class="msg" id="m-msg"></div>
+  </div>
+
+  <!-- 営業データ（開店/閉店時の温湿度・期間指定） -->
+  <div class="panel" id="panel-biz">
+    <div class="ctrl">
+      <label>期間</label>
+      <input type="date" id="b-start">
+      <span style="color:var(--ink3)">〜</span>
+      <input type="date" id="b-end">
+      <button class="btn" onclick="presetBiz(1)">1ヶ月</button>
+      <button class="btn" onclick="presetBiz(3)">3ヶ月</button>
+      <button class="btn" onclick="presetBiz(6)">6ヶ月</button>
+      <button class="btn bp" onclick="loadBiz()">表示</button>
+    </div>
+    <div class="legend-note">営業データ（sessions）の開店時・閉店時の店内温湿度。実線＝開店時／破線＝閉店時。</div>
+    <div class="stat-row" id="b-stats"></div>
+    <div class="card"><div class="chart-wrap"><canvas id="b-chart"></canvas></div></div>
+    <div class="tbl-wrap">
+      <table id="b-table"><thead><tr><th>営業日</th><th>開店℃</th><th>閉店℃</th><th>開店%</th><th>閉店%</th><th>営業数</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="msg" id="b-msg"></div>
   </div>
 
 </div>
@@ -256,11 +278,80 @@ function renderMonthlyTable(days,byDay){
   }).join('');
 }
 
+// ── 営業データ（開店/閉店の温湿度・期間指定） ──────────────
+var _bChart=null;
+function _isoLocal(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function _toY6(iso){ var p=(iso||'').split('-'); return p.length<3?'':(p[0].slice(2)+p[1]+p[2]); }
+function presetBiz(months){
+  var now=jstNow();
+  var end=new Date(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate());
+  var start=new Date(end.getFullYear(),end.getMonth()-months,end.getDate());
+  document.getElementById('b-start').value=_isoLocal(start);
+  document.getElementById('b-end').value=_isoLocal(end);
+  loadBiz();
+}
+async function loadBiz(){
+  var s6=_toY6(document.getElementById('b-start').value), e6=_toY6(document.getElementById('b-end').value);
+  var msg=document.getElementById('b-msg'); msg.textContent='読み込み中…';
+  if(!s6||!e6){ msg.textContent='期間を指定してください'; return; }
+  if(s6>e6){ msg.textContent='開始日は終了日より前にしてください'; return; }
+  try{
+    var snap=await db.collection('sessions').where('date','>=',s6).where('date','<=',e6).get();
+    var byDate={}; var nSess=0;
+    snap.forEach(function(d){
+      var v=d.data()||{}; if(v.testMode) return; var day=v.date; if(!day) return; nSess++;
+      if(!byDate[day]) byDate[day]={ot:[],ct:[],oh:[],ch:[],n:0};
+      byDate[day].n++;
+      if(typeof v.openTemperature==='number') byDate[day].ot.push(v.openTemperature);
+      if(typeof v.closeTemperature==='number') byDate[day].ct.push(v.closeTemperature);
+      if(typeof v.openHumidity==='number') byDate[day].oh.push(v.openHumidity);
+      if(typeof v.closeHumidity==='number') byDate[day].ch.push(v.closeHumidity);
+    });
+    var days=Object.keys(byDate).sort();
+    var aOT=[],aCT=[],aOH=[],aCH=[];
+    days.forEach(function(d){ var o=byDate[d]; o.ot.forEach(function(x){aOT.push(x);}); o.ct.forEach(function(x){aCT.push(x);}); o.oh.forEach(function(x){aOH.push(x);}); o.ch.forEach(function(x){aCH.push(x);}); });
+    document.getElementById('b-stats').innerHTML=
+      statTile('開店 平均温度',aOT,'℃','temp-c')+statTile('閉店 平均温度',aCT,'℃','temp-c')
+      +statTile('開店 平均湿度',aOH,'%','hum-c')+statTile('閉店 平均湿度',aCH,'%','hum-c')
+      +'<div class="stat"><div class="k">営業日数</div><div class="v">'+days.length+'<small> 日 / '+nSess+'営業</small></div></div>';
+    drawBiz(days,byDate);
+    renderBizTable(days,byDate);
+    msg.textContent=nSess?('営業 '+nSess+' 件 / '+days.length+' 日'):'この期間の営業データはありません';
+  }catch(e){ msg.textContent='読み込み失敗: '+e.message; }
+}
+function drawBiz(days,byDate){
+  var ctx=document.getElementById('b-chart').getContext('2d');
+  if(_bChart) _bChart.destroy();
+  var labels=days.map(function(d){ return parseInt(d.slice(2,4))+'/'+parseInt(d.slice(4,6)); });
+  function ser(k){ return days.map(function(d){ return byDate[d][k].length?round1(avg(byDate[d][k])):null; }); }
+  _bChart=new Chart(ctx,{ type:'line',
+    data:{ labels:labels, datasets:[
+      { label:'開店 温度(℃)', data:ser('ot'), borderColor:'#b03020', yAxisID:'y', tension:.3, spanGaps:true, pointRadius:2 },
+      { label:'閉店 温度(℃)', data:ser('ct'), borderColor:'#b03020', borderDash:[5,4], yAxisID:'y', tension:.3, spanGaps:true, pointRadius:0 },
+      { label:'開店 湿度(%)', data:ser('oh'), borderColor:'#1a6e58', yAxisID:'y1', tension:.3, spanGaps:true, pointRadius:2 },
+      { label:'閉店 湿度(%)', data:ser('ch'), borderColor:'#1a6e58', borderDash:[5,4], yAxisID:'y1', tension:.3, spanGaps:true, pointRadius:0 }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      scales:{ y:{position:'left',title:{display:true,text:'温度(℃)'}}, y1:{position:'right',title:{display:true,text:'湿度(%)'},grid:{drawOnChartArea:false}} } }
+  });
+}
+function renderBizTable(days,byDate){
+  var tb=document.querySelector('#b-table tbody');
+  tb.innerHTML=days.map(function(d){
+    var o=byDate[d];
+    var f=function(a){ return a.length?round1(avg(a)):'—'; };
+    return '<tr><td>'+parseInt(d.slice(2,4))+'/'+parseInt(d.slice(4,6))+'</td>'
+      +'<td>'+f(o.ot)+'</td><td>'+f(o.ct)+'</td><td>'+f(o.oh)+'</td><td>'+f(o.ch)+'</td><td>'+o.n+'</td></tr>';
+  }).join('');
+}
+
 function switchTab(t){
   document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===t); });
   document.getElementById('panel-daily').classList.toggle('active', t==='daily');
   document.getElementById('panel-monthly').classList.toggle('active', t==='monthly');
+  document.getElementById('panel-biz').classList.toggle('active', t==='biz');
   if(t==='monthly' && !_mChart) loadMonthly();
+  if(t==='biz' && !_bChart) loadBiz();
 }
 
 // ── 認証 ──────────────────────────────────
@@ -271,6 +362,11 @@ AuthRole.requireStaff(auth,
     var now=jstNow();
     document.getElementById('d-date').value=now.getUTCFullYear()+'-'+pad2(now.getUTCMonth()+1)+'-'+pad2(now.getUTCDate());
     document.getElementById('m-month').value=now.getUTCFullYear()+'-'+pad2(now.getUTCMonth()+1);
+    // 営業データ: 既定は直近1ヶ月
+    var _bEnd=new Date(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate());
+    var _bStart=new Date(_bEnd.getFullYear(),_bEnd.getMonth()-1,_bEnd.getDate());
+    document.getElementById('b-end').value=_isoLocal(_bEnd);
+    document.getElementById('b-start').value=_isoLocal(_bStart);
     loadDaily();
   },
   function(){ location.replace('tdhome.html'); }
