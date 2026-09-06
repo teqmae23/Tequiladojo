@@ -752,7 +752,7 @@ async function loadBlindMarks(){
     blindMarkMap={};
     snap.forEach(d=>{
       const v=d.data();
-      blindMarkMap[d.id]={emoji:v.emoji||v.mark||'🔵',label:v.label||d.id};
+      blindMarkMap[d.id]={emoji:v.emoji||'',mark:v.mark||'',colorCode:v.colorCode||'',label:v.label||d.id};
     });
   }catch(e){console.warn('blindMarks取得失敗:',e);}
 }
@@ -1342,13 +1342,17 @@ function mpToast(msg){
   t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#18110a;color:#fff;padding:10px 18px;border-radius:18px;font-size:13px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.3)';
   document.body.appendChild(t); setTimeout(function(){t.remove();},2600);
 }
+// 管理者画面(markSym)と同じ体裁：色付き●/●●（白は○/○○）。数字マークは丸数字。
 function biMarkChip(markId){
-  var m=blindMarkMap[markId];
-  if(m&&(m.emoji||m.symbol)) return '<span title="'+esc(m.label||'')+'">'+esc(m.emoji||m.symbol)+'</span>';
-  var cc=(markId||'').charAt(0), isW=cc==='W', isDbl=(markId||'').charAt(1)==='◎';
+  var m=blindMarkMap[markId]||{};
+  if(m.emoji) return '<span title="'+esc(m.label||'')+'">'+esc(m.emoji)+'</span>'; // 明示的な絵文字設定時のみ
+  var id=markId||'';
+  var num=parseInt(id,10);
+  if(!isNaN(num)&&num>=1&&num<=10&&/^\d+$/.test(id)) return '<span style="color:#4a3820;font-weight:700">'+_biNums[num-1]+'</span>';
+  var cc=m.colorCode||id.charAt(0), isDbl=(m.mark||id.charAt(1))==='◎', isW=cc==='W';
   var col=isW?'#18110a':({R:'#c0392b',G:'#1a6e3a',Y:'#b8860b',B:'#185FA5'}[cc]||'#666');
   var sym=isW?(isDbl?'○○':'○'):(isDbl?'●●':'●');
-  return '<span style="color:'+col+';font-weight:700">'+sym+'</span>';
+  return '<span style="color:'+col+';font-weight:700;letter-spacing:-1px">'+sym+'</span>';
 }
 // ═══ ブラインド結果 リアルタイム共有テーブル（管理者画面と同じ体裁） ═══
 // 参加者全員の入力を1つの表でリアルタイム共有。自分の行のみ編集可、他行は参照。
@@ -1368,6 +1372,18 @@ function _biInjectStyle(){
    +'#blind-input-modal .bt td.wrong{background:#f8d7da}'
    +'#blind-input-modal .bt select{width:100%;min-width:52px;padding:5px 2px;border:1px solid #ccc;border-radius:5px;font-size:13px;background:#fff}'
    +'#blind-input-modal .bt tr.me-row td.nm{color:#0c447c}'
+   +'#blind-input-modal .bt .bi-pk{display:inline-flex;align-items:center;justify-content:center;gap:2px;min-width:52px;padding:6px 4px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;font-size:15px;line-height:1;font-family:inherit}'
+   +'#blind-input-modal .bt .bi-pk.has{border-color:#0c447c;background:#f4f8ff}'
+   +'#blind-input-modal .bt .bi-pk .ph{color:#999;font-size:11px}'
+   +'#blind-input-modal .bt .bi-pk .cr{color:#8a7a60;font-size:9px}'
+   +'.bi-pkpanel{position:fixed;z-index:400;background:#fff;border:1px solid #ccc;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.2);padding:5px;max-height:62vh;overflow-y:auto;min-width:132px}'
+   +'.bi-pkopt{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:7px;cursor:pointer;font-size:13px;color:#18110a}'
+   +'.bi-pkopt:hover{background:#f2ede3}'
+   +'.bi-pkopt.active{background:#eaf1fb;font-weight:600}'
+   +'.bi-pkopt .n{color:#8a7a60;font-size:13px;min-width:18px;text-align:center}'
+   +'.bi-pkopt .sy{font-size:16px;line-height:1;min-width:26px;text-align:center}'
+   +'.bi-pkopt .l{color:#333}'
+   +'.bi-pkopt.bi-pknone{color:#999;justify-content:center}'
    +'#blind-input-modal .bleg{margin-top:10px;font-size:12px;color:#555}'
    +'#blind-input-modal .bleg-row{display:flex;align-items:center;gap:6px;padding:2px 0}';
   document.head.appendChild(st);
@@ -1383,8 +1399,10 @@ function ensureBlindInputModal(){
     +'<div id="bi-body" style="padding:12px 14px;overflow-x:auto"></div></div>';
   document.body.appendChild(w);
   w.addEventListener('click',function(e){ if(e.target===w) closeBlindInput(); });
+  if(!window._biDocClick){ window._biDocClick=true; document.addEventListener('click',function(){ _biClosePanel(); }); }
 }
 function closeBlindInput(){
+  _biClosePanel();
   var w=document.getElementById('blind-input-modal'); if(w) w.style.display='none';
   if(_biGuessUnsub){ try{_biGuessUnsub();}catch(e){} _biGuessUnsub=null; }
   if(_biFlightUnsub){ try{_biFlightUnsub();}catch(e){} _biFlightUnsub=null; }
@@ -1467,8 +1485,7 @@ function renderBiTable(){
   // 各マーク（番号）のボトル名を注文から引く（「マーク対応」に管理者と同様にボトル名を表示）
   var markName={};
   (allOrders||[]).forEach(function(o){ if(o&&o.batchId===s.batchId&&o.blindId===1&&o.blindMarkId&&o.productName&&!markName[o.blindMarkId]) markName[o.blindMarkId]=o.productName; });
-  // 選択欄はマーク（番号＋マークラベル）。ボトル名は下の「マーク対応」で表示する。
-  var optHtml=function(sel){ return '<option value="">—</option>'+marks.map(function(mk,i){ return '<option value="'+esc(mk)+'"'+(sel===mk?' selected':'')+'>'+_biNums[i]+' '+esc((blindMarkMap[mk]&&blindMarkMap[mk].label)||mk)+'</option>'; }).join(''); };
+  // 選択欄はカラーマークピッカー（管理者画面と同じ：番号＋色付き●/●●＋ラベル）。ボトル名は下の「マーク対応」で表示。
   // ヘッダ
   var thMarks=marks.map(function(mk,i){
     return '<th>'+_biNums[i]+(revealed?('<br>'+biMarkChip(mk)):'')+'</th>';
@@ -1482,7 +1499,7 @@ function renderBiTable(){
       var g=r.answers[mk]||'';
       var cls=''; var content;
       if(canEditRow){
-        content='<select onchange="biSetAnswer(\''+esc(mk)+'\',this.value)">'+optHtml(g)+'</select>';
+        content='<button type="button" class="bi-pk'+(g?' has':'')+'" onclick="biOpenPicker(event,\''+esc(mk)+'\',this)">'+(g?biMarkChip(g):'<span class="ph">選択</span>')+'<span class="cr">▾</span></button>';
       }else{
         content=g?biMarkChip(g):'<span style="color:#bbb">—</span>';
       }
@@ -1490,7 +1507,7 @@ function renderBiTable(){
       return '<td class="'+(isMe?'me':'')+cls+'">'+content+'</td>';
     }).join('');
     var w=r.winner||'';
-    var winCell=canEditRow ? '<select onchange="biSetWinner(this.value)">'+optHtml(w)+'</select>' : (w?biMarkChip(w):'<span style="color:#bbb">—</span>');
+    var winCell=canEditRow ? '<button type="button" class="bi-pk'+(w?' has':'')+'" onclick="biOpenWinnerPicker(event,this)">'+(w?biMarkChip(w):'<span class="ph">選択</span>')+'<span class="cr">▾</span></button>' : (w?biMarkChip(w):'<span style="color:#bbb">—</span>');
     var score='—';
     if(revealed){ var cc=marks.filter(function(mk){ return r.answers[mk]===mk; }).length; score='<b>'+cc+'/'+marks.length+'</b>'; }
     var nm=esc(r.name||r.customerId)+(r.confirmed?' <span style="color:#1a6640;font-size:11px">✅</span>':'');
@@ -1519,7 +1536,49 @@ function renderBiTable(){
     +action;
 }
 function biSetAnswer(mk,val){ var me=_biMe(); if(!me) return; me.answers[mk]=val||null; renderBiTable(); biPersist(); }
-function biSetWinner(val){ var me=_biMe(); if(!me) return; me.winner=val||null; biPersist(); }
+function biSetWinner(val){ var me=_biMe(); if(!me) return; me.winner=val||null; renderBiTable(); biPersist(); }
+// ── カラーマークピッカー（管理者画面と同じ体裁） ──
+var _biPanel=null;
+function _biClosePanel(){ if(_biPanel){ try{_biPanel.remove();}catch(e){} _biPanel=null; } }
+function _biOptRows(cur){
+  var s=_biState; if(!s) return '';
+  return s.marks.map(function(mk,i){
+    var lbl=(blindMarkMap[mk]&&blindMarkMap[mk].label)||mk;
+    return '<div class="bi-pkopt'+(cur===mk?' active':'')+'" data-mk="'+esc(mk)+'">'
+      +'<span class="n">'+_biNums[i]+'</span><span class="sy">'+biMarkChip(mk)+'</span><span class="l">'+esc(lbl)+'</span></div>';
+  }).join('');
+}
+function _biOpenPanel(html,btnEl,onPick){
+  if(_biPanel){ _biClosePanel(); return; }   // 同じボタン再タップで閉じる（トグル）
+  var panel=document.createElement('div');
+  panel.className='bi-pkpanel';
+  panel.innerHTML='<div class="bi-pkopt bi-pknone" data-mk="">− クリア</div>'+html;
+  panel.addEventListener('click',function(e){
+    e.stopPropagation();
+    var opt=e.target.closest('.bi-pkopt'); if(!opt) return;
+    _biClosePanel(); onPick(opt.getAttribute('data-mk')||'');
+  });
+  panel.style.visibility='hidden';
+  document.body.appendChild(panel);
+  _biPanel=panel;
+  requestAnimationFrame(function(){
+    var rect=btnEl.getBoundingClientRect();
+    var ph=panel.offsetHeight, spaceBelow=window.innerHeight-rect.bottom-8;
+    panel.style.top=((spaceBelow<ph&&rect.top>ph)?rect.top-ph-4:rect.bottom+4)+'px';
+    panel.style.left=Math.max(4,Math.min(rect.left,window.innerWidth-panel.offsetWidth-4))+'px';
+    panel.style.visibility='visible';
+  });
+}
+function biOpenPicker(ev,colMk,btnEl){
+  ev.stopPropagation();
+  var me=_biMe(); if(!me) return;
+  _biOpenPanel(_biOptRows(me.answers[colMk]||''), btnEl, function(val){ biSetAnswer(colMk,val); });
+}
+function biOpenWinnerPicker(ev,btnEl){
+  ev.stopPropagation();
+  var me=_biMe(); if(!me) return;
+  _biOpenPanel(_biOptRows(me.winner||''), btnEl, function(val){ biSetWinner(val); });
+}
 function biConfirm(){
   var s=_biState, me=_biMe(); if(!me) return;
   var unfilled=s.marks.some(function(mk){ return !me.answers[mk]; });
