@@ -280,6 +280,7 @@ a{color:var(--gold-d)}
 .ck-prog-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;border:1px solid transparent;flex:0 0 auto}
 .ck-prog-sel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
 .ck-prog-lbl{font-size:13px;font-weight:700;color:var(--ink2);margin-right:2px}
+.ck-prog-box{border:1.5px solid #e0872a;border-radius:12px;padding:10px 12px}
 .ck-prog-chip{font-size:14px;font-weight:600;padding:10px 18px;border-radius:18px;border:1.5px solid var(--border2);background:var(--white);color:var(--ink2);cursor:pointer}
 .ck-prog-chip.on{border-color:transparent}
 .ck-prog-chip.ro{cursor:default}
@@ -1757,7 +1758,7 @@ function taskDetailHtml(t){
       if(t.requireFile && !(myc&&myc.fileUrl)) hh+='<div class="ck-file"><input type="file" id="ckf-'+esc(t.id)+'"><div class="ck-hint">「'+esc((st[st.length-1]||{}).label||'完了')+'」にはファイル提出が必要です</div></div>';
       hh+=submittedFileHtml(t, myc);
       hh+= done?submittedMessageHtml(t,myc):messageFieldHtml(t,myc);
-      hh+='<div class="ck-prog-sel"><span class="ck-prog-lbl">進捗状況を選択：</span>'+st.map(function(s){ return _progChip(s, myc&&myc.progress===s.id, false, t.id); }).join('')+'</div>';
+      hh+='<div class="ck-prog-sel ck-prog-box"><span class="ck-prog-lbl">進捗状況を選択：</span>'+st.map(function(s){ return _progChip(s, myc&&myc.progress===s.id, false, t.id); }).join('')+'</div>';
       hh+='<div class="ck-prog-note">進捗を選んで下さい。「'+esc((st[st.length-1]||{}).label||'完了')+'」で完了になります。選択済みのボタンをもう押すと未選択に戻ります。</div>';
     } else {
       if(t.requireFile && !(myc&&myc.fileUrl)) hh+='<div class="ck-file"><input type="file" id="ckf-'+esc(t.id)+'"><div class="ck-hint">完了にはファイル提出が必要です</div></div>';
