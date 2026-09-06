@@ -1704,7 +1704,7 @@ function messageFieldHtml(t, myc){
   var head='<div class="ck-msg"><label class="ck-msg-lbl">'+esc(lbl)+'：'+(range?'<span class="ck-msg-range">'+range+'</span>':'')+'</label>';
   // 桁数（最大文字数）が指定されていれば、その桁数に合わせた1行入力欄。無指定は複数行。
   if(t.msgMax){
-    return head+'<input type="text" class="ck-msg-in-fit" id="ckm-'+esc(t.id)+'" maxlength="'+t.msgMax+'" style="width:'+(t.msgMax+4)+'ch" placeholder="入力してください" value="'+esc(v)+'"></div>';
+    return head+'<input type="text" class="ck-msg-in-fit" id="ckm-'+esc(t.id)+'" maxlength="'+t.msgMax+'" style="width:'+(t.msgMax+4)+'ch" value="'+esc(v)+'"></div>';
   }
   return head+'<textarea class="ck-msg-in" id="ckm-'+esc(t.id)+'" placeholder="メッセージを入力してください">'+esc(v)+'</textarea></div>';
 }
