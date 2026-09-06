@@ -1623,6 +1623,7 @@ function filterMembers(){
   if(!hasFilter && cntMem3<1){ list.style.display='none'; return; }
 
   var filtered=cache.members.filter(function(m){
+    if(m.deleted) return false;   // 削除済み（ソフトデリート）会員は来場者選択に出さない
     if(pref && m.prefecture!==pref) return false;
     if(rank && m.rank!==rank) return false;
     if(visits){
@@ -1755,6 +1756,7 @@ function onMemberInput(idx){
             return db2-da;
           });
           sortedMembers.forEach(function(m){
+            if(m.deleted) return;   // 削除済み会員は紹介者選択に出さない
             var mid=m.id;
             var mDisp=m.displayId||m.memberId||m.id;
             if(mid===val) return;
