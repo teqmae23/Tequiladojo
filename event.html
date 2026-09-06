@@ -265,8 +265,9 @@ a{color:var(--gold-d)}
 .ck-vis{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;flex:0 0 auto}
 .ck-vis.pub{background:#e7f6f1;color:var(--teal)}.ck-vis.priv{background:var(--cream3);color:var(--ink3)}
 .ck-content{font-size:13px;color:var(--ink2);line-height:1.7;margin:6px 0;white-space:pre-wrap}
-.ck-dl{font-size:12px;color:var(--gold-d);font-weight:600}
+.ck-dl{font-size:14px;color:var(--gold-d);font-weight:700}
 .ck-dl.over{color:var(--red)}
+.ck-divider{border-top:1px solid var(--border);margin:10px 0 4px}
 .ck-btn{margin-top:8px;padding:9px 16px;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer}
 .ck-btn.todo{background:var(--gold-d);color:var(--cream)}
 .ck-btn.did{background:var(--teal);color:#fff}
@@ -277,8 +278,8 @@ a{color:var(--gold-d)}
 .ck-p{font-size:12px;padding:3px 9px;border-radius:12px;background:var(--cream2);color:var(--ink2)}
 .ck-p.ok{background:#e7f6f1;color:var(--teal)}
 .ck-prog-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;border:1px solid transparent;flex:0 0 auto}
-.ck-prog-sel{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.ck-prog-chip{font-size:12px;font-weight:600;padding:6px 12px;border-radius:16px;border:1.5px solid var(--border2);background:var(--white);color:var(--ink2);cursor:pointer}
+.ck-prog-sel{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.ck-prog-chip{font-size:14px;font-weight:600;padding:10px 18px;border-radius:18px;border:1.5px solid var(--border2);background:var(--white);color:var(--ink2);cursor:pointer}
 .ck-prog-chip.on{border-color:transparent}
 .ck-prog-chip.ro{cursor:default}
 .ck-prog-chip:disabled{cursor:default}
@@ -1733,7 +1734,7 @@ function taskDetailHtml(t){
   var done=st?!!(myc&&myc.progress&&myc.progress===_progLastId(t)):!!(myc&&myc.done);
   var over=(t.deadline&&t.deadline<today&&!done);
   var active=_taskActiveSelf(t);
-  var hh='<div class="ck-visrow"><span class="ck-vis '+(pub?'pub':'priv')+'">'+(pub?'公開':'非公開')+'</span></div>';
+  var hh='';
   if(!active) hh+='<div class="ck-graynote">👁 この項目の対象者ではありません（閲覧のみ）</div>';
   if(t.content) hh+='<div class="ck-content">'+esc(t.content)+'</div>';
   if(t.deadline) hh+='<div class="ck-dl'+(over?' over':'')+'">期限: '+esc(t.deadline)+(over?'（超過）':'')+'</div>';
@@ -1754,7 +1755,7 @@ function taskDetailHtml(t){
       hh+=submittedFileHtml(t, myc);
       hh+= done?submittedMessageHtml(t,myc):messageFieldHtml(t,myc);
       hh+='<div class="ck-prog-sel">'+st.map(function(s){ return _progChip(s, myc&&myc.progress===s.id, false, t.id); }).join('')+'</div>';
-      hh+='<div class="ck-prog-note">段階を選んで進捗を更新します。「'+esc((st[st.length-1]||{}).label||'完了')+'」で完了になります。同じ段階をもう一度押すと取り消せます。</div>';
+      hh+='<div class="ck-prog-note">進捗を選んで下さい。「'+esc((st[st.length-1]||{}).label||'完了')+'」で完了になります。選択済みのボタンをもう押すと未選択に戻ります。</div>';
     } else {
       if(t.requireFile && !(myc&&myc.fileUrl)) hh+='<div class="ck-file"><input type="file" id="ckf-'+esc(t.id)+'"><div class="ck-hint">完了にはファイル提出が必要です</div></div>';
       hh+=submittedFileHtml(t, myc);
@@ -1808,6 +1809,7 @@ function renderChecklist(){
   var h='<div class="card"><div class="sec-row"><div class="sec">✅ タスクリスト</div>'
     +'<div class="ck-summary '+ov+'">'+CK_STATE_ICON[ov]+' 完了：'+checked+'件 ／ 未完了：'+unchecked+'件</div></div>';
   if(overdue>0) h+='<div class="ck-warn">🚨 期限切れのタスクがあります！</div>';
+  h+='<div class="ck-divider"></div>';
   h+=arr.map(function(t){
     var s=_taskMyState(t);
     var active=_taskActiveSelf(t);
