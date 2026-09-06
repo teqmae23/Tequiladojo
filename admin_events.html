@@ -2245,7 +2245,7 @@ function renderSubmissions(){
   _docTasks.forEach(function(t){
     var docs=byTask[t.id]||[];
     if(t.requireFile || t.requireMessage || docs.length){
-      groups.push({ id:t.id, title:t.title||'（無題）', docs:docs, requireMessage:!!t.requireMessage }); handled[t.id]=true;
+      groups.push({ id:t.id, title:t.title||'（無題）', docs:docs, requireMessage:!!t.requireMessage, audience:t.audience, audienceIds:(t.audienceIds||[]) }); handled[t.id]=true;
     }
   });
   // 削除された項目・taskId欠落の提出物
@@ -2280,7 +2280,13 @@ function docTaskGroup(gp, idx){
     return '<div class="doc-subrow"><span style="flex:1;font-size:11px;color:var(--ink3);font-weight:600">✍️メッセージ</span>'+apc+'</div>'
       +'<div class="doc-msg">'+esc(mo.message)+'</div>';
   }
-  var rows=_docRoster.map(function(p){
+  // 対象者=選択者のみの場合、提出管理も対象者だけに絞る
+  var audSet=null;
+  if(gp.audience==='selected' && Array.isArray(gp.audienceIds) && gp.audienceIds.length){
+    audSet={}; gp.audienceIds.forEach(function(id){ audSet[String(id)]=true; });
+  }
+  var roster=audSet?_docRoster.filter(function(p){ return audSet[String(p.tid)]||(p.uid&&audSet[String(p.uid)])||(p.memberId&&audSet[String(p.memberId)]); }):_docRoster;
+  var rows=roster.map(function(p){
     var doc=null;
     for(var i=0;i<gp.docs.length;i++){ if(!matched[gp.docs[i].id]&&_subMatch(gp.docs[i],p)){ doc=gp.docs[i]; matched[doc.id]=true; break; } }
     var mo=getMsg(p); var uid=p.uid||p.tid;
@@ -2290,9 +2296,9 @@ function docTaskGroup(gp, idx){
     if(mo){ subCount++; return '<div class="doc-subrow"><span class="nm">'+esc(p.name)+'</span></div>'+msgBlock(uid, mo); }
     return '<div class="doc-subrow"><span class="nm">'+esc(p.name)+'</span><span class="unsub">未提出</span></div>';
   });
-  // 名簿に居ない提出者（イベント離脱者等）
+  // 名簿に居ない提出者（イベント離脱者等・対象外だが提出済みの人も念のため表示）
   gp.docs.forEach(function(doc){ if(matched[doc.id]) return; subCount++; rows.push(fileRow(doc.uploaderName||'（会員）', doc)); });
-  var total=_docRoster.length;
+  var total=roster.length;
   var cnt='提出 '+subCount+(total?(' / '+total):'');
   return '<div class="doc-task'+(gp.orphan?' orphan':'')+'">'
     +'<div class="doc-task-hd" onclick="toggleDocTask(\''+esc(String(gp.id))+'\')">'
