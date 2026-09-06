@@ -304,6 +304,7 @@ a{color:var(--gold-d)}
 .ck-msg-in{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--cream);font-family:var(--sans);min-height:44px;resize:vertical;line-height:1.5}
 .ck-msg-in-fit{box-sizing:border-box;max-width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;background:var(--cream);font-family:var(--sans);line-height:1.5;letter-spacing:.02em}
 .ck-msg-done{font-size:12px;margin-top:8px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:7px 10px;white-space:pre-wrap;word-break:break-word;line-height:1.5}
+.ck-locked{font-size:12px;color:var(--gold-d);font-weight:700;margin-top:10px}
 .bd-new{margin-bottom:12px}
 .bd-newbtn{padding:9px 16px;border:none;border-radius:20px;background:var(--gold-d);color:var(--cream);font-size:13px;font-weight:600;cursor:pointer}
 .bd-post{border:1px solid var(--border);border-radius:var(--r);padding:11px 13px;margin-bottom:10px;background:var(--white)}
@@ -1711,7 +1712,8 @@ function submittedMessageHtml(t, myc){
   var v=(myc&&myc.message)||'';
   if(!v) return '';
   var lbl=(t.msgLabel||t.title||'');
-  return '<div class="ck-msg"><div class="ck-msg-lbl">'+esc(lbl)+'：（送信済み）</div><div class="ck-msg-done">'+esc(v)+'</div></div>';
+  var ap=(myc&&myc.approved)?'<span class="ck-appr ok">✅ 承認済み</span>':'<span class="ck-appr no">⏳ 未承認</span>';
+  return '<div class="ck-msg"><div class="ck-msg-lbl">'+esc(lbl)+'：（送信済み）'+ap+'</div><div class="ck-msg-done">'+esc(v)+'</div></div>';
 }
 // 完了時メッセージの検証（未入力・桁数）。requireMessageでなければ常にok。
 function _checkMsg(t){
@@ -1738,7 +1740,14 @@ function taskDetailHtml(t){
   if(t.sampleUrl) hh+='<div class="ck-attach">📄 <a href="'+esc(t.sampleUrl)+'" target="_blank" rel="noopener">提出見本を見る ↗</a></div>';
   if(t.attachmentUrl) hh+='<div class="ck-attach">📎 <a href="'+esc(t.attachmentUrl)+'" target="_blank" rel="noopener">'+esc(t.attachmentName||'参考ファイル')+'</a></div>';
   if(_isReal && active){
-    if(st){
+    var locked=!!(myc&&myc.approved); // 承認済みは変更不可
+    if(locked){
+      // 承認済み: 提出物・メッセージを表示のみ、操作は不可
+      hh+=submittedFileHtml(t, myc);
+      hh+=submittedMessageHtml(t, myc);
+      if(st) hh+='<div class="ck-prog-sel">'+st.map(function(s){ return _progChip(s, myc&&myc.progress===s.id, true, t.id); }).join('')+'</div>';
+      hh+='<div class="ck-locked">🔒 管理者承認済みのため変更できません</div>';
+    } else if(st){
       // 進捗管理: 段階を選択
       var lastId=_progLastId(t);
       if(t.requireFile && !(myc&&myc.fileUrl)) hh+='<div class="ck-file"><input type="file" id="ckf-'+esc(t.id)+'"><div class="ck-hint">「'+esc((st[st.length-1]||{}).label||'完了')+'」にはファイル提出が必要です</div></div>';
@@ -1823,6 +1832,7 @@ function taskAction(taskId){
   var t=_tasks.find(function(x){return x.id===taskId;}); if(!t) return;
   if(!_taskActiveSelf(t)) return;
   var myc=(t._comps||[]).find(function(c){ return c.id===_uid; });
+  if(myc&&myc.approved){ toast('管理者承認済みのため変更できません'); return; } // 承認済みは変更不可
   var currentlyDone=!!(myc&&myc.done);
   var btn=g('ckb-'+taskId);
   if(currentlyDone){ // 取り消し
@@ -1847,6 +1857,7 @@ function taskProg(taskId, stateId){
   if(!_taskActiveSelf(t)) return;
   var st=_progStates(t); if(!st) return;
   var myc=_myComp(t);
+  if(myc&&myc.approved){ toast('管理者承認済みのため変更できません'); return; } // 承認済みは変更不可
   var cur=myc&&myc.progress;
   // 同じ段階を再度押したら取り消し
   if(cur===stateId){

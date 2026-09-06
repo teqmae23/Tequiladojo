@@ -164,15 +164,14 @@ service cloud.firestore {
         allow write: if isStaff();
         match /completions/{uid} {
           allow read: if signedIn();
-          // 本人は作成・更新可。ただし承認済み(approved==true)の提出は、本人が
-          // approved を解除（=承認済み提出の削除/差し替え）できない。解除はスタッフのみ。
+          // 本人は作成・更新可。ただし承認済み(approved==true)になったら本人は
+          // 変更・取消できない（完了取消/ファイル削除/メッセージ変更を含む）。解除はスタッフのみ。
           allow create, update: if isStaff()
             || (realUser() && request.auth.uid == uid
                 && request.resource.data.get('authUid', '') == request.auth.uid
-                && (resource == null
-                    || resource.data.get('approved', false) != true
-                    || request.resource.data.get('approved', false) == true));
-          allow delete: if isStaff() || (realUser() && request.auth.uid == uid);
+                && (resource == null || resource.data.get('approved', false) != true));
+          allow delete: if isStaff()
+            || (realUser() && request.auth.uid == uid && resource.data.get('approved', false) != true);
         }
       }
 

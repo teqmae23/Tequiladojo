@@ -2210,7 +2210,7 @@ function loadDocs(){
     if(msgTasks.length){
       Promise.all(msgTasks.map(function(t){
         return taskCol(_docEventId).doc(t.id).collection('completions').get()
-          .then(function(cs){ var m={}; cs.docs.forEach(function(d){ var c=d.data()||{}; if(c.message) m[d.id]=c.message; }); _docMsgs[t.id]=m; })
+          .then(function(cs){ var m={}; cs.docs.forEach(function(d){ var c=d.data()||{}; if(c.message) m[d.id]={message:c.message, approved:!!c.approved}; }); _docMsgs[t.id]=m; })
           .catch(function(){ _docMsgs[t.id]={}; });
       })).then(function(){ renderDocs(); });
     }
@@ -2270,13 +2270,22 @@ function docTaskGroup(gp, idx){
       +'<button class="rm" title="削除" onclick="delDoc(\''+esc(doc.id)+'\')">×</button></div>';
   }
   var msgs=_docMsgs[gp.id]||{};
-  function msgHtml(p){ if(!gp.requireMessage) return ''; var m=msgs[p.uid]||msgs[p.tid]||''; return m?('<div class="doc-msg">✍️ '+esc(m)+'</div>'):''; }
+  function getMsg(p){ return gp.requireMessage?(msgs[p.uid]||msgs[p.tid]||null):null; }
+  function msgTextHtml(mo){ return (mo&&mo.message)?('<div class="doc-msg">✍️ '+esc(mo.message)+'</div>'):''; }
   var rows=_docRoster.map(function(p){
     var doc=null;
     for(var i=0;i<gp.docs.length;i++){ if(!matched[gp.docs[i].id]&&_subMatch(gp.docs[i],p)){ doc=gp.docs[i]; matched[doc.id]=true; break; } }
-    var m=msgHtml(p);
-    if(doc){ subCount++; return fileRow(p.name, doc)+m; }
-    if(gp.requireMessage && (msgs[p.uid]||msgs[p.tid])){ subCount++; return '<div class="doc-subrow"><span class="nm">'+esc(p.name)+'</span><span class="doc-appr ok">✍️送信済</span></div>'+m; }
+    var mo=getMsg(p);
+    // ファイルがある場合は、その行の承認ボタンで承認（completion.approvedを共有）。メッセージは本文のみ表示。
+    if(doc){ subCount++; return fileRow(p.name, doc)+msgTextHtml(mo); }
+    // メッセージのみ提出: 承認/取消ボタンを付与（completionのみ更新）。
+    if(mo){ subCount++;
+      var uid=p.uid||p.tid;
+      var apc=mo.approved
+        ? '<span class="doc-appr ok">✅承認済</span><button class="doc-apbtn" onclick="toggleApproveMsg(\''+esc(gp.id)+'\',\''+esc(uid)+'\',false)">取消</button>'
+        : '<span class="doc-appr" style="color:#8a6a1e">⏳未承認</span><button class="doc-apbtn on" onclick="toggleApproveMsg(\''+esc(gp.id)+'\',\''+esc(uid)+'\',true)">承認</button>';
+      return '<div class="doc-subrow"><span class="nm">'+esc(p.name)+'</span><span style="flex:1;font-size:11px;color:var(--ink3);font-weight:600">✍️メッセージ</span>'+apc+'</div>'+msgTextHtml(mo);
+    }
     return '<div class="doc-subrow"><span class="nm">'+esc(p.name)+'</span><span class="unsub">未提出</span></div>';
   });
   // 名簿に居ない提出者（イベント離脱者等）
@@ -2334,6 +2343,14 @@ function toggleApprove(docId, taskId, uid, val){
   var writes=[ docCol(_docEventId).doc(docId).set({approved:val, approvedAt:ts},{merge:true}) ];
   if(taskId && uid) writes.push(taskCol(_docEventId).doc(taskId).collection('completions').doc(uid).set({approved:val, approvedAt:ts},{merge:true}));
   Promise.all(writes).then(function(){ toast(val?'承認しました':'承認を取り消しました'); loadDocs(); })
+    .catch(function(e){ toast('更新失敗: '+e.message,'err'); });
+}
+// メッセージのみの提出の承認/取消（completionのみ更新）
+function toggleApproveMsg(taskId, uid, val){
+  if(!taskId||!uid) return;
+  var ts=firebase.firestore.FieldValue.serverTimestamp();
+  taskCol(_docEventId).doc(taskId).collection('completions').doc(uid).set({approved:val, approvedAt:ts},{merge:true})
+    .then(function(){ toast(val?'承認しました':'承認を取り消しました'); loadDocs(); })
     .catch(function(e){ toast('更新失敗: '+e.message,'err'); });
 }
 </script>
