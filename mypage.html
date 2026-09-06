@@ -1499,14 +1499,20 @@ function renderBiTable(){
       var cls=''; var content;
       if(canEditRow){
         content='<button type="button" class="bi-pk'+(g?' has':'')+'" onclick="biOpenPicker(event,\''+esc(mk)+'\',this)">'+(g?biMarkChip(g):'<span class="ph">選択</span>')+'<span class="cr">▾</span></button>';
+      }else if(g){
+        // 公開前は他人の選択内容を「?」で隠す（自分の行と公開後のみ実マークを表示）
+        content=(revealed||isMe)?biMarkChip(g):'<span style="color:#8a7a60;font-weight:700">?</span>';
       }else{
-        content=g?biMarkChip(g):'<span style="color:#bbb">—</span>';
+        content='<span style="color:#bbb">—</span>';
       }
       if(revealed){ if(g){ cls=(g===mk)?' correct':' wrong'; } else { cls=' wrong'; } }
       return '<td class="'+(isMe?'me':'')+cls+'">'+content+'</td>';
     }).join('');
     var w=r.winner||'';
-    var winCell=canEditRow ? '<button type="button" class="bi-pk'+(w?' has':'')+'" onclick="biOpenWinnerPicker(event,this)">'+(w?biMarkChip(w):'<span class="ph">選択</span>')+'<span class="cr">▾</span></button>' : (w?biMarkChip(w):'<span style="color:#bbb">—</span>');
+    var winCell;
+    if(canEditRow){ winCell='<button type="button" class="bi-pk'+(w?' has':'')+'" onclick="biOpenWinnerPicker(event,this)">'+(w?biMarkChip(w):'<span class="ph">選択</span>')+'<span class="cr">▾</span></button>'; }
+    else if(w){ winCell=(revealed||isMe)?biMarkChip(w):'<span style="color:#8a7a60;font-weight:700">?</span>'; }
+    else { winCell='<span style="color:#bbb">—</span>'; }
     var score='—';
     if(revealed){ var cc=marks.filter(function(mk){ return r.answers[mk]===mk; }).length; score='<b>'+cc+'/'+marks.length+'</b>'; }
     var nm=esc(r.name||r.customerId)+(r.confirmed?' <span style="color:#1a6640;font-size:11px">✅</span>':'');
