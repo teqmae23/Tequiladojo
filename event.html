@@ -156,6 +156,11 @@ a{color:var(--gold-d)}
 .sc-tzdiv::before,.sc-tzdiv::after{content:"";flex:1;border-top:1px dashed #d0a97a}
 #sc-tzpop{position:fixed;z-index:400;background:#18110a;color:#fff;font-size:12px;line-height:1.7;padding:9px 12px;border-radius:8px;max-width:250px;box-shadow:0 4px 16px rgba(0,0,0,.35);display:none}
 .sc-tz{font-size:10px;color:var(--ink3)}
+/* 参加者を閲覧ボタン＆ポップアップ */
+.sc-rosterbtn{margin-left:6px;padding:1px 8px;border:1px solid var(--teal);background:var(--white);color:var(--teal);font-size:10px;font-weight:700;border-radius:11px;cursor:pointer;font-family:inherit;white-space:nowrap;vertical-align:middle}
+#sc-rosterpop{position:fixed;z-index:410;background:#18110a;color:#fff;font-size:12px;line-height:1.7;padding:10px 13px;border-radius:8px;max-width:260px;box-shadow:0 4px 16px rgba(0,0,0,.35);display:none}
+#sc-rosterpop .rp-hd{font-weight:700;color:var(--gold-l);margin-bottom:4px}
+#sc-rosterpop .rp-body{color:#fff}
 .sc-time-jst{display:block;font-size:10px;color:var(--teal);font-weight:600;white-space:nowrap}
 .sc-daydiff{color:var(--red);margin-left:2px}
 .sc-idl{display:flex;align-items:center;gap:10px;margin:10px 2px;color:#b0442e;font-size:11px;font-weight:700;letter-spacing:.06em}
@@ -666,6 +671,8 @@ function _ptDone(snap){
   }).map(function(p){ return { id:p.uid||('mid:'+(p.memberId||p.nickname||'')), nickname:p.nickname, iconUrl:p.iconUrl, memberId:p.memberId, invited:true }; });
   _participants=reg.concat(extra);
   renderRoster(); renderMypageBar(); if(g('checklist-cont')&&_tasks.length) renderChecklist();
+  // 参加者名簿が揃ったら、既に描画済みのスケジュールの参加メンバーを再計算して反映
+  if(_schedItems.length){ var sc=g('schedule-cont'); if(sc&&sc.innerHTML) renderSchedule(_schedItems); }
 }
 function loadParticipants(){
   var col=db.collection('events').doc(eventId).collection('participants');
@@ -1035,6 +1042,14 @@ document.addEventListener('click',function(e){ var p=g('sc-tzpop'); if(p&&p.styl
 function _itemTz(lat,lng){ if(window.tzlookup&&lat!=null&&lng!=null){ try{ return tzlookup(lat,lng); }catch(e){} } return null; }
 function _tzChip(tz, ms){ var inst=new Date(ms||Date.now()); var abbr=_tzAbbr(inst,tz); var rel=Math.round((_tzOffMin(inst,tz)-_tzOffMin(inst,'Asia/Tokyo'))/60); return esc(abbr)+'（JST'+(rel>=0?'+':'')+rel+'）'; }
 function tzDivider(tzA,tzB,ms){ return '<div class="sc-tzdiv">'+_tzChip(tzA,ms)+' → '+_tzChip(tzB,ms)+'</div>'; }
+// 日付変更線（IDL）: 移動で経度差が180°超のとき横断とみなす。
+function _idlCross(it){ return !!(it.isMove && it.lat!=null && it.lng!=null && it.toLat!=null && it.toLng!=null && Math.abs(it.toLng-it.lng)>180); }
+// 東(経度>0)→西(<0)は太平洋を東進＝日付が戻る(−1日)、西→東は日付が進む(+1日)。
+function idlDivider(it){
+  var sign=(it.lng>0&&it.toLng<0)?-1:((it.lng<0&&it.toLng>0)?1:0);
+  var txt=sign===0?'日付変更線':('日付変更線（'+(sign>0?'＋1日':'−1日')+'）');
+  return '<div class="sc-idl">🌐 '+txt+'</div>';
+}
 var _scMarkers={}, _scMap=null, _scItemBounds={};
 function _safeTz(la,ln){ try{ return window.tzlookup?tzlookup(la,ln):null; }catch(e){ return null; } }
 function _schedInstant(it){
@@ -1092,6 +1107,58 @@ function schedNamesHtml(it, inline){
   var lbl=it.nameLabel?('<span class="sc-names-lbl">'+esc(it.nameLabel)+'</span> '):'';
   var tag=inline?'span':'div';
   return '<'+tag+' class="sc-names'+(inline?' inline':'')+'">👥 '+lbl+names+'</'+tag+'>';
+}
+/* ── 合流/離脱にそった「現在参加しているメンバー」の管理 ── */
+// ラベルに「合流」を含めば加入、「離脱」を含めば離脱として扱う（既存の自由ラベルを利用）。
+var _rosterMap={};
+function _rosterOp(it){ if(!it||!it.showNames) return ''; var l=it.nameLabel||''; if(l.indexOf('離脱')>=0) return 'leave'; if(l.indexOf('合流')>=0) return 'join'; return ''; }
+// nameParticipants の tid（authUid または memberId）から名簿(_participants)の該当者を探す。
+function _findByTid(tid){
+  tid=String(tid==null?'':tid);
+  for(var i=0;i<_participants.length;i++){ var p=_participants[i];
+    if(String(p.id)===tid) return p;
+    if(p.memberId!=null && String(p.memberId)===tid) return p;
+    if(p.id && String(p.id)==='mid:'+tid) return p;
+  }
+  return null;
+}
+function _pName(p){ return (p&&(p.nickname||p.memberId))||'（会員）'; }
+// 各アイテム時点での参加メンバー配列(名前)を算出。起点は全参加者。
+// ただし「後から合流」する人はその合流時点まで含めない。離脱でその時点以降は除外。
+function _computeRosters(enr){
+  var map={};
+  // 合流イベントで登場する人（＝後から合流する人）のキー集合
+  var joinKeys={};
+  enr.forEach(function(e){ if(_rosterOp(e.it)==='join'){ (e.it.nameParticipants||[]).forEach(function(np){ var p=_findByTid(np.id); joinKeys[p?p.id:('np:'+(np.id||np.name))]=true; }); } });
+  // 初期メンバー = 全参加者のうち、後から合流する人を除いた人
+  var cur={};
+  _participants.forEach(function(p){ if(!joinKeys[p.id]) cur[p.id]=_pName(p); });
+  enr.forEach(function(e){
+    var it=e.it, op=_rosterOp(it);
+    if(op==='join'){ (it.nameParticipants||[]).forEach(function(np){ var p=_findByTid(np.id); var k=p?p.id:('np:'+(np.id||np.name)); cur[k]=(p?_pName(p):null)||np.name||'（会員）'; }); }
+    else if(op==='leave'){ (it.nameParticipants||[]).forEach(function(np){ var p=_findByTid(np.id); var k=p?p.id:('np:'+(np.id||np.name)); delete cur[k]; }); }
+    map[it.id]=Object.keys(cur).map(function(k){ return cur[k]; });
+  });
+  return map;
+}
+function showRoster(id, btn){
+  var names=_rosterMap[id]||[];
+  var pop=g('sc-rosterpop'); if(!pop){ pop=document.createElement('div'); pop.id='sc-rosterpop'; document.body.appendChild(pop); }
+  pop.innerHTML='<div class="rp-hd">👥 この時点の参加メンバー（'+names.length+'名）</div>'
+    +'<div class="rp-body">'+(names.length?names.map(function(n){return esc(n);}).join('、'):'なし')+'</div>';
+  pop.style.display='block';
+  var r=btn.getBoundingClientRect();
+  var top=r.bottom+6; if(top+120>window.innerHeight) top=Math.max(8,r.top-120);
+  pop.style.top=top+'px';
+  pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-270))+'px';
+}
+function hideRosterPop(){ var p=g('sc-rosterpop'); if(p) p.style.display='none'; }
+document.addEventListener('click',function(e){ var p=g('sc-rosterpop'); if(p&&p.style.display==='block'&&!p.contains(e.target)&&!(e.target.classList&&e.target.classList.contains('sc-rosterbtn'))) hideRosterPop(); });
+// 「参加者を表示」チェックのアイテムに、その時点の参加メンバーを閲覧するボタンを付ける。
+function rosterBtnHtml(it){
+  if(!it||!it.showNames) return '';
+  var n=(_rosterMap[it.id]||[]).length;
+  return '<button type="button" class="sc-rosterbtn" onclick="event.stopPropagation();showRoster(\''+esc(it.id)+'\',this)">👥 参加者'+(n?(' '+n+'名'):'')+'</button>';
 }
 function _circNum(n){ return (n>=1&&n<=20)?String.fromCharCode(0x2460+(n-1)):String(n); }
 function _roomBlockHtml(r){
@@ -1156,7 +1223,7 @@ function renderSchedItem(it){
   var detail=hasDetail?'<div class="sc-detail" id="scd-'+did+'" style="display:none">'+inner+'</div>':'';
   var clickable=hasDetail||geo;
   return '<div class="sc-item'+(clickable?' has-geo':'')+'" style="background:'+catBg(it.category)+'"'+(clickable?' onclick="onSchedItemClick(\''+did+'\','+(geo?'1':'0')+')"':'')+'>'+schedTimeHtml(it)+'<span class="sc-ic">'+ic+'</span>'
-    +'<div class="sc-body"><div class="sc-ttl">'+(it.overnight?'(泊) ':'')+esc(it.title||'')+schedNamesHtml(it,true)+(hasDetail?'<span class="sc-caret2" id="scc-'+did+'">▾</span>':'')+'</div>'
+    +'<div class="sc-body"><div class="sc-ttl">'+(it.overnight?'(泊) ':'')+esc(it.title||'')+schedNamesHtml(it,true)+rosterBtnHtml(it)+(hasDetail?'<span class="sc-caret2" id="scc-'+did+'">▾</span>':'')+'</div>'
     +detail
     +'</div></div>';
 }
@@ -1269,6 +1336,7 @@ function renderSchedule(items){
   if(!items.length){ el.innerHTML='<div class="card"><div class="sec">🗓 スケジュール</div>'+debugTimeBar()+'<div style="font-size:12px;color:var(--ink3)">スケジュールは準備中です。</div></div>'; return; }
   var enr=_sortByJst(items);
   _revealMap=_computeReveals(enr); // 各アイテムの完了時刻を算出（restricted閲覧者向け）
+  _rosterMap=_computeRosters(enr); // 合流/離脱にそった各時点の参加メンバー（全アイテム順で算出）
   // restricted閲覧者には hideUntilDone のアイテムを完了まで非表示
   var visEnr=enr.filter(function(e){ return !_itemHidden(e.it); });
   _nowMapItem=null;
@@ -1282,6 +1350,8 @@ function renderSchedule(items){
     var it=e.it, d=it.date||'';
     if(!cur||cur.day!==d){ cur={day:d, rows:'', n:0}; groups.push(cur); }
     cur.rows+=renderSchedItem(it); cur.n++;
+    // 移動で日付変更線を越える場合、その直後に仕切り線（±1日）
+    if(_idlCross(it)) cur.rows+=idlDivider(it);
     // 移動でタイムゾーンが変わる場合、その直後に仕切り線
     if(it.isMove && it.lat!=null && it.lng!=null && it.toLat!=null && it.toLng!=null){
       var tzO=_itemTz(it.lat,it.lng), tzD=_itemTz(it.toLat,it.toLng);
