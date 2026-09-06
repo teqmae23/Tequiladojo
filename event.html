@@ -1698,14 +1698,16 @@ function messageFieldHtml(t, myc){
   var v=(myc&&myc.message)||'';
   var range=_msgRange(t);
   var maxAttr=t.msgMax?(' maxlength="'+t.msgMax+'"'):'';
-  return '<div class="ck-msg"><label class="ck-msg-lbl">'+esc(t.title||'')+'：'+(range?'<span class="ck-msg-range">'+range+'</span>':'')+'</label>'
+  var lbl=(t.msgLabel||t.title||'');
+  return '<div class="ck-msg"><label class="ck-msg-lbl">'+esc(lbl)+'：'+(range?'<span class="ck-msg-range">'+range+'</span>':'')+'</label>'
     +'<textarea class="ck-msg-in" id="ckm-'+esc(t.id)+'"'+maxAttr+' placeholder="メッセージを入力してください">'+esc(v)+'</textarea></div>';
 }
 function submittedMessageHtml(t, myc){
   if(!(t&&t.requireMessage)) return '';
   var v=(myc&&myc.message)||'';
   if(!v) return '';
-  return '<div class="ck-msg"><div class="ck-msg-lbl">'+esc(t.title||'')+'：（送信済み）</div><div class="ck-msg-done">'+esc(v)+'</div></div>';
+  var lbl=(t.msgLabel||t.title||'');
+  return '<div class="ck-msg"><div class="ck-msg-lbl">'+esc(lbl)+'：（送信済み）</div><div class="ck-msg-done">'+esc(v)+'</div></div>';
 }
 // 完了時メッセージの検証（未入力・桁数）。requireMessageでなければ常にok。
 function _checkMsg(t){
@@ -1775,8 +1777,8 @@ function renderChecklist(){
   if(!_tasks.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">タスクリストはまだありません。</div></div>'; return; }
   // 表示できる項目のみ（対象者=選択者・表示範囲=選択者のみで対象外の場合は非表示）
   var vis=_tasks.filter(_taskVisibleSelf);
-  if(!vis.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">表示できるチェック項目はありません。</div></div>'; return; }
-  // 並び順: 対象項目が先→期限切れ→未チェック→チェック済（各内で期限早い順→登録が早い順）、対象外（グレー）は末尾
+  if(!vis.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">表示できるタスクはありません。</div></div>'; return; }
+  // 並び順: 対象項目が先→期限切れ→未完了→完了（各内で期限早い順→登録が早い順）、対象外（グレー）は末尾
   var ORDER={over:0, todo:1, done:2};
   var arr=vis.slice().sort(function(a,b){
     var aa=_taskActiveSelf(a)?0:1, ab=_taskActiveSelf(b)?0:1;
@@ -1791,8 +1793,8 @@ function renderChecklist(){
   arr.forEach(function(t){ if(!_taskActiveSelf(t)) return; var s=_taskMyState(t); if(s==='done')checked++; else { unchecked++; if(s==='over')overdue++; } });
   var ov = overdue>0?'over':(unchecked>0?'todo':'done');
   var h='<div class="card"><div class="sec-row"><div class="sec">✅ タスクリスト</div>'
-    +'<div class="ck-summary '+ov+'">'+CK_STATE_ICON[ov]+' チェック済：'+checked+'件 ／ 未チェック：'+unchecked+'件</div></div>';
-  if(overdue>0) h+='<div class="ck-warn">🚨 期限切れのチェック項目があります！</div>';
+    +'<div class="ck-summary '+ov+'">'+CK_STATE_ICON[ov]+' 完了：'+checked+'件 ／ 未完了：'+unchecked+'件</div></div>';
+  if(overdue>0) h+='<div class="ck-warn">🚨 期限切れのタスクがあります！</div>';
   h+=arr.map(function(t){
     var s=_taskMyState(t);
     var active=_taskActiveSelf(t);
