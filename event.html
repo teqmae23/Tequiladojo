@@ -598,7 +598,7 @@ function computeViewAccess(ev, selfReg){
 function fmtDate(s){ if(!s)return ''; var p=s.split('-'); return p.length===3?(p[0]+'年'+parseInt(p[1],10)+'月'+parseInt(p[2],10)+'日'):s; }
 function wday(s){ try{ var d=new Date(s+'T00:00:00'); return '（'+['日','月','火','水','木','金','土'][d.getDay()]+'）'; }catch(e){ return ''; } }
 
-var CN_NAMES={schedule:'🗓 スケジュール/タイムテーブル',checklist:'✅ チェックリスト',documents:'📁 ドキュメント保管庫'};
+var CN_NAMES={schedule:'🗓 スケジュール/タイムテーブル',checklist:'✅ タスクリスト',documents:'📁 ドキュメント保管庫'};
 function accSection(type, icon, title, innerHtml, open){
   return '<section class="acc'+(type==='overview'?' acc-ov':'')+(open?' open':'')+'" id="acc-'+type+'">'
     +'<button type="button" class="acc-hd" onclick="toggleAcc(\''+type+'\')"><span class="acc-ic">'+icon+'</span><span class="acc-ttl">'+esc(title)+'</span><span class="acc-car">'+(open?'▾':'▸')+'</span></button>'
@@ -624,7 +624,7 @@ function render(ev){
     if(c.type==='overview') html+=accSection('overview','📋','開催概要', overviewHtml(ev, period), true);
     else if(c.type==='survey'){ html+=accSection('survey','📋','アンケート', '<div id="surveys"></div>', false); hasSurvey=true; }
     else if(c.type==='schedule'){ html+=accSection('schedule','🗓','スケジュール', '<div id="schedule-cont">'+_loadcard('🗓','スケジュール')+'</div>', false); hasSchedule=true; }
-    else if(c.type==='checklist'){ html+=accSection('checklist','✅','チェックリスト', '<div id="checklist-cont">'+_loadcard('✅','チェックリスト')+'</div>', false); hasChecklist=true; }
+    else if(c.type==='checklist'){ html+=accSection('checklist','✅','タスクリスト', '<div id="checklist-cont">'+_loadcard('✅','タスクリスト')+'</div>', false); hasChecklist=true; }
     else if(c.type==='documents'){ html+=accSection('documents','📁','ドキュメント', '<div id="documents-cont">'+_loadcard('📁','ドキュメント')+'</div>', false); hasDocs=true; }
     else if(c.type==='board'){ _boardCfg=c.config||{}; html+=accSection('board','💬','掲示板', '<div id="board-cont">'+_loadcard('💬','掲示板')+'</div>', false); hasBoard=true; }
     else if(CN_NAMES[c.type]) html+='<div class="soon-card">'+CN_NAMES[c.type]+'<br><span style="font-size:11px">このコンテンツは準備中です。</span></div>';
@@ -813,7 +813,7 @@ function renderMpBtns(){
   var mp=ovCfg().mypage||{};
   var btns=[];
   if(mp.survey!==false) btns.push('<button onclick="closeMp();var s=document.getElementById(\'surveys\');if(s)s.scrollIntoView({behavior:\'smooth\'});">📝 アンケートへ</button>');
-  if(mp.checklist!==false) btns.push('<button disabled>✅ チェックリスト（準備中）</button>');
+  if(mp.checklist!==false) btns.push('<button disabled>✅ タスクリスト（準備中）</button>');
   if(mp.image!==false) btns.push('<button disabled>📷 画像投稿（準備中）</button>');
   g('mp-btns').innerHTML=btns.length?btns.join(''):'<span style="font-size:12px;color:var(--ink3)">表示する機能はありません</span>';
 }
@@ -1624,7 +1624,7 @@ function deletePhoto(){
 function closeLb(){ g('lightbox').classList.remove('open'); g('lb-img').src=''; }
 document.addEventListener('keydown',function(e){ if(!g('lightbox').classList.contains('open'))return; if(e.key==='Escape')closeLb(); else if(e.key==='ArrowLeft')lbNav(-1); else if(e.key==='ArrowRight')lbNav(1); });
 
-/* ════════ チェックリスト（③・会員側） ════════ */
+/* ════════ タスクリスト（③・会員側） ════════ */
 var _tasks=[];
 function _ckToday(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 function loadChecklist(){
@@ -1636,7 +1636,7 @@ function loadChecklist(){
       return ref.doc(t.id).collection('completions').get().then(function(cs){ t._comps=cs.docs.map(function(d){ return Object.assign({id:d.id},d.data()); }); return t; }).catch(function(){ t._comps=[]; return t; });
     }));
   }).then(function(tasks){ _tasks=tasks; renderChecklist(); })
-    .catch(function(){ var el=g('checklist-cont'); if(el) el.innerHTML='<div class="card"><div class="sec">✅ チェックリスト</div><div style="font-size:12px;color:var(--ink3)">読み込みに失敗しました</div></div>'; });
+    .catch(function(){ var el=g('checklist-cont'); if(el) el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">読み込みに失敗しました</div></div>'; });
 }
 var _ckExpanded={};
 var CK_STATE_ICON={done:'〇', todo:'⚠️', over:'🚨'};
@@ -1772,10 +1772,10 @@ function taskDetailHtml(t){
 function toggleTaskDetail(id){ var d=g('ckd-'+id), c=g('ckcar-'+id); if(!d) return; var open=d.style.display!=='none'; d.style.display=open?'none':''; _ckExpanded[id]=!open; if(c)c.textContent=open?'▸':'▾'; }
 function renderChecklist(){
   var el=g('checklist-cont'); if(!el) return;
-  if(!_tasks.length){ el.innerHTML='<div class="card"><div class="sec">✅ チェックリスト</div><div style="font-size:12px;color:var(--ink3)">チェックリストはまだありません。</div></div>'; return; }
+  if(!_tasks.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">タスクリストはまだありません。</div></div>'; return; }
   // 表示できる項目のみ（対象者=選択者・表示範囲=選択者のみで対象外の場合は非表示）
   var vis=_tasks.filter(_taskVisibleSelf);
-  if(!vis.length){ el.innerHTML='<div class="card"><div class="sec">✅ チェックリスト</div><div style="font-size:12px;color:var(--ink3)">表示できるチェック項目はありません。</div></div>'; return; }
+  if(!vis.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">表示できるチェック項目はありません。</div></div>'; return; }
   // 並び順: 対象項目が先→期限切れ→未チェック→チェック済（各内で期限早い順→登録が早い順）、対象外（グレー）は末尾
   var ORDER={over:0, todo:1, done:2};
   var arr=vis.slice().sort(function(a,b){
@@ -1790,7 +1790,7 @@ function renderChecklist(){
   var checked=0, unchecked=0, overdue=0;
   arr.forEach(function(t){ if(!_taskActiveSelf(t)) return; var s=_taskMyState(t); if(s==='done')checked++; else { unchecked++; if(s==='over')overdue++; } });
   var ov = overdue>0?'over':(unchecked>0?'todo':'done');
-  var h='<div class="card"><div class="sec-row"><div class="sec">✅ チェックリスト</div>'
+  var h='<div class="card"><div class="sec-row"><div class="sec">✅ タスクリスト</div>'
     +'<div class="ck-summary '+ov+'">'+CK_STATE_ICON[ov]+' チェック済：'+checked+'件 ／ 未チェック：'+unchecked+'件</div></div>';
   if(overdue>0) h+='<div class="ck-warn">🚨 期限切れのチェック項目があります！</div>';
   h+=arr.map(function(t){

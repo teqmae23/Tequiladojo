@@ -509,17 +509,17 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
       <div id="doc-prog" style="font-size:12px;color:var(--ink3);margin-top:6px"></div>
       <hr class="fsep" style="margin:14px 0;border:none;border-top:1px solid var(--border)">
       <div id="doc-list"><div class="ec">読み込み中…</div></div>
-      <div style="font-weight:700;font-size:13px;color:var(--ink2);margin:16px 0 8px">📥 提出書類（チェックリスト項目ごと・管理者のみ）</div>
+      <div style="font-weight:700;font-size:13px;color:var(--ink2);margin:16px 0 8px">📥 提出書類（タスクリスト項目ごと・管理者のみ）</div>
       <div id="doc-sub-list"><div class="ec">なし</div></div>
     </div>
     <div class="mft"><div style="flex:1"></div><button class="btn bs" onclick="closeDocMgr()">閉じる</button></div>
   </div>
 </div>
 
-<!-- チェックリスト管理モーダル -->
+<!-- タスクリスト管理モーダル -->
 <div class="mbg" id="tk-mgr-modal">
   <div class="modal" style="max-width:600px">
-    <div class="mhd"><span id="tk-mgr-title">チェックリスト</span><button class="hdr-nav" style="margin-left:auto;color:var(--ink3);border-color:var(--border2)" onclick="closeTaskMgr()">✕</button></div>
+    <div class="mhd"><span id="tk-mgr-title">タスクリスト</span><button class="hdr-nav" style="margin-left:auto;color:var(--ink3);border-color:var(--border2)" onclick="closeTaskMgr()">✕</button></div>
     <div class="mbd">
       <div class="toolbar" style="margin-bottom:10px"><button class="btn bp sm" onclick="openTaskEd(null)">＋ 項目追加</button><span class="cnt" id="tk-cnt"></span></div>
       <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">左の色帯: <span style="color:var(--teal)">■</span>公開（全員の状況を会員間で共有） / <span style="color:var(--ink3)">■</span>非公開（本人のみ）</div>
@@ -529,7 +529,7 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
   </div>
 </div>
 
-<!-- チェックリスト項目 編集モーダル -->
+<!-- タスクリスト項目 編集モーダル -->
 <div class="mbg" id="tk-ed-modal">
   <div class="modal">
     <div class="mhd"><span id="tk-ed-title">項目追加</span><button class="hdr-nav" style="margin-left:auto;color:var(--ink3);border-color:var(--border2)" onclick="closeTaskEd()">✕</button></div>
@@ -574,7 +574,7 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
           <button type="button" class="btn bs sm" style="margin-top:6px" onclick="tkProgAdd()">＋ 段階を追加</button>
         </div>
       </div>
-      <div class="fg" style="margin-top:10px"><label class="fl">提出見本ファイル（任意・会員が閲覧可）</label><input class="fi" id="tk-sample" type="file"><div id="tk-sample-cur" style="font-size:11px;color:var(--ink3);margin-top:3px"></div><div style="font-size:11px;color:var(--ink3);margin-top:2px">提出物の見本をアップロードすると、参加者がチェックリスト上で確認できます。</div></div>
+      <div class="fg" style="margin-top:10px"><label class="fl">提出見本ファイル（任意・会員が閲覧可）</label><input class="fi" id="tk-sample" type="file"><div id="tk-sample-cur" style="font-size:11px;color:var(--ink3);margin-top:3px"></div><div style="font-size:11px;color:var(--ink3);margin-top:2px">提出物の見本をアップロードすると、参加者がタスクリスト上で確認できます。</div></div>
       <div class="fg" style="margin-top:10px"><label class="fl">参考ファイル（任意・会員が閲覧可）</label><input class="fi" id="tk-file" type="file"><div id="tk-file-cur" style="font-size:11px;color:var(--ink3);margin-top:3px"></div></div>
       <div id="tk-prog" style="font-size:12px;color:var(--ink3)"></div>
       <div class="err" id="tk-err"></div>
@@ -765,7 +765,7 @@ function render(){
       +'<div class="ev-top"><span class="ev-name">'+esc(ev.name||'（無題）')+'</span>'+pub
       +'<div class="ev-actions"><button class="btn bs sm" onclick="openEvent(\''+esc(ev.id)+'\')">編集</button>'
       +'<button class="btn bs sm" onclick="openSchedMgr(\''+esc(ev.id)+'\')">🗓 スケジュール</button>'
-      +'<button class="btn bs sm" onclick="openTaskMgr(\''+esc(ev.id)+'\')">✅ チェックリスト</button>'
+      +'<button class="btn bs sm" onclick="openTaskMgr(\''+esc(ev.id)+'\')">✅ タスクリスト</button>'
       +'<button class="btn bs sm" onclick="openDocMgr(\''+esc(ev.id)+'\')">📁 ドキュメント</button>'
       +'<button class="btn bs sm" onclick="openSurveyMgr(\''+esc(ev.id)+'\')">📋 アンケート</button>'
       +'<a class="btn bs sm" style="text-decoration:none" href="/event.html?id='+encodeURIComponent(ev.id)+'" target="_blank">TOPを見る</a></div></div>'
@@ -877,7 +877,7 @@ function applyMemberPicker(){
 var CONTAINER_TYPES=[
   {type:'overview',icon:'📋',name:'開催概要・参加者一覧'},
   {type:'schedule',icon:'🗓',name:'スケジュール/タイムテーブル',soon:true},
-  {type:'checklist',icon:'✅',name:'チェックリスト(TODO)',soon:true},
+  {type:'checklist',icon:'✅',name:'タスクリスト(TODO)',soon:true},
   {type:'survey',icon:'📝',name:'アンケート'},
   {type:'documents',icon:'📁',name:'ドキュメント保管庫',soon:true},
   {type:'board',icon:'💬',name:'ツリー掲示板'}
@@ -907,7 +907,7 @@ function renderContainers(){
       var mp=c.config.mypage||{};
       row+='<div class="cn-cfg">参加者マイページに表示:'
         +'<label><input type="checkbox" data-mp="survey" data-i="'+i+'"'+(mp.survey!==false?' checked':'')+'>アンケート</label>'
-        +'<label><input type="checkbox" data-mp="checklist" data-i="'+i+'"'+(mp.checklist!==false?' checked':'')+'>チェックリスト</label>'
+        +'<label><input type="checkbox" data-mp="checklist" data-i="'+i+'"'+(mp.checklist!==false?' checked':'')+'>タスクリスト</label>'
         +'<label><input type="checkbox" data-mp="image" data-i="'+i+'"'+(mp.image!==false?' checked':'')+'>画像投稿</label>'
         +'</div>';
     }
@@ -1953,7 +1953,7 @@ function delSched(){
    .catch(function(e){ g('se-err').textContent='削除失敗: '+e.message; });
 }
 
-/* ════════ チェックリスト（TODO・③） ════════ */
+/* ════════ タスクリスト（TODO・③） ════════ */
 var _tkEventId=null, _tkItems=[], _tkEditId=null, _tkProg=[], _tkAudSel={}, _tkParticipants=[];
 var PROG_COLORS={
   red:{bg:'#fbdcd6',tx:'#a5341f',bd:'#e5b0a6'},
@@ -1973,7 +1973,7 @@ function taskCol(eid){ return db.collection('events').doc(eid).collection('tasks
 function openTaskMgr(eventId){
   _tkEventId=eventId;
   var ev=events.find(function(x){return x.id===eventId;});
-  g('tk-mgr-title').textContent='✅ チェックリスト — '+(ev?ev.name:'');
+  g('tk-mgr-title').textContent='✅ タスクリスト — '+(ev?ev.name:'');
   g('tk-list').innerHTML='<div class="ec">読み込み中…</div>';
   g('tk-mgr-modal').classList.add('open');
   _tkParticipants=[];
@@ -2234,7 +2234,7 @@ function _subMatch(doc, p){
   if(doc.memberId && p.memberId && String(doc.memberId)===String(p.memberId)) return true;
   return false;
 }
-// チェックリスト項目ごとに提出書類をまとめて表示
+// タスクリスト項目ごとに提出書類をまとめて表示
 function renderSubmissions(){
   var subs=_docs.filter(function(d){ return d.category==='submission'; });
   var byTask={};
