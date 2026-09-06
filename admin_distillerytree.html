@@ -381,6 +381,14 @@ document.getElementById('btn-logout').addEventListener('click',function(){ auth.
 
 // ── データ ───────────────────────────────────────────────────────────
 var rawDis=[], rawBrands=[], rawBottles=[], rawBdata=[], rawAmmBottle=[];
+var keepSourceSet={}; // キープ元となっている bottleData の id 集合
+// BD（ボトルデータ）の状態: keep=キープ / ended=提供終了 / stock=在庫
+function _bdataState(r){
+  if(!r) return 'stock';
+  if(keepSourceSet[String(r.id)] || String(r.lotNo||'').toUpperCase()==='KEEP') return 'keep';
+  if(String(r.status||'')==='ended') return 'ended';
+  return 'stock';
+}
 var tree={};
 
 function buildTree(){
@@ -627,6 +635,13 @@ function makeRow(lv, r, stateKey, hasChildren, nameColor){
   var badge=document.createElement('span');
   badge.className='level-badge';
   badge.textContent=lv.badge;
+  // BDアイコンは状態別に配色: 提供終了=灰色 / キープ=ピンク / 在庫=白背景黒字
+  if(lv.key==='bdata'){
+    var _st=_bdataState(r);
+    if(_st==='keep'){ badge.style.background='#e48fb3'; badge.style.color='#fff'; badge.title='キープボトル'; }
+    else if(_st==='ended'){ badge.style.background='#b0a99e'; badge.style.color='#fff'; badge.title='提供終了'; }
+    else { badge.style.background='#fff'; badge.style.color='#000'; badge.style.border='1px solid #8a7f70'; badge.title='在庫ボトル'; }
+  }
   infoDiv.appendChild(badge);
 
   // id
@@ -984,13 +999,17 @@ function loadAll(){
     db.collection('brands').get(),
     db.collection('bottles').get(),
     db.collection('bottleData').get(),
-    db.collection('ammBottleDetails').get().catch(function(){return {docs:[]};})
+    db.collection('ammBottleDetails').get().catch(function(){return {docs:[]};}),
+    db.collection('keepBottles').get().catch(function(){return {docs:[]};})
   ]).then(function(res){
     rawDis=res[0].docs.map(function(d){return Object.assign({id:d.id},d.data());});
     rawBrands=res[1].docs.map(function(d){return Object.assign({id:d.id},d.data());});
     rawBottles=res[2].docs.map(function(d){return Object.assign({id:d.id},d.data());});
     rawBdata=res[3].docs.map(function(d){return Object.assign({id:d.id},d.data());});
     rawAmmBottle=res[4].docs.map(function(d){return Object.assign({id:d.id},d.data());});
+    // キープボトルが参照する bottleData（＝キープ元）の集合を作成
+    keepSourceSet={};
+    res[5].docs.forEach(function(d){ var k=d.data()||{}; if(k.sourceBottleDataId) keepSourceSet[String(k.sourceBottleDataId)]=true; });
     mergeAmmBottle(rawAmmBottle);
     msg.textContent='';
     buildTree(); buildColPanel(); renderTree();
