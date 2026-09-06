@@ -1376,16 +1376,15 @@ function _biInjectStyle(){
    +'#blind-input-modal .bt .bi-pk.has{border-color:#0c447c;background:#f4f8ff}'
    +'#blind-input-modal .bt .bi-pk .ph{color:#999;font-size:11px}'
    +'#blind-input-modal .bt .bi-pk .cr{color:#8a7a60;font-size:9px}'
-   +'.bi-pkpanel{position:fixed;z-index:400;background:#fff;border:1px solid #ccc;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.2);padding:5px;max-height:62vh;overflow-y:auto;min-width:132px}'
-   +'.bi-pkopt{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:7px;cursor:pointer;font-size:13px;color:#18110a}'
+   +'.bi-pkpanel{position:fixed;z-index:400;background:#fff;border:1px solid #ccc;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.2);padding:5px;max-height:62vh;overflow-y:auto;min-width:64px}'
+   +'.bi-pkopt{display:flex;align-items:center;justify-content:center;padding:9px 12px;border-radius:7px;cursor:pointer;font-size:13px;color:#18110a}'
    +'.bi-pkopt:hover{background:#f2ede3}'
-   +'.bi-pkopt.active{background:#eaf1fb;font-weight:600}'
-   +'.bi-pkopt .n{color:#8a7a60;font-size:13px;min-width:18px;text-align:center}'
-   +'.bi-pkopt .sy{font-size:16px;line-height:1;min-width:26px;text-align:center}'
-   +'.bi-pkopt .l{color:#333}'
-   +'.bi-pkopt.bi-pknone{color:#999;justify-content:center}'
+   +'.bi-pkopt.active{background:#eaf1fb}'
+   +'.bi-pkopt .sy{font-size:17px;line-height:1}'
+   +'.bi-pkopt.bi-pknone{color:#999}'
    +'#blind-input-modal .bleg{margin-top:10px;font-size:12px;color:#555}'
-   +'#blind-input-modal .bleg-row{display:flex;align-items:center;gap:6px;padding:2px 0}';
+   +'#blind-input-modal .bleg-row{display:flex;align-items:center;gap:8px;padding:3px 0}'
+   +'#blind-input-modal .bleg-row .num{color:#8a7a60;min-width:16px;text-align:center}';
   document.head.appendChild(st);
 }
 function ensureBlindInputModal(){
@@ -1516,7 +1515,9 @@ function renderBiTable(){
   // 凡例
   var legend=marks.map(function(mk,i){
     var bn=markName[mk]||(blindMarkMap[mk]&&blindMarkMap[mk].label)||mk;
-    return '<div class="bleg-row">'+_biNums[i]+' '+(revealed?biMarkChip(mk)+' ':'')+'<span>'+esc(bn)+'</span></div>';
+    // 公開前はマークを「?」で伏せる（管理者画面「マーク対応表」と同じ／正解を出さない）
+    var msp=revealed?biMarkChip(mk):'<span style="color:#8a7a60;font-weight:700">?</span>';
+    return '<div class="bleg-row"><span class="num">'+_biNums[i]+'</span>'+msp+'<span>'+esc(bn)+'</span></div>';
   }).join('');
   // 操作エリア（自分用）
   var action='';
@@ -1542,10 +1543,9 @@ var _biPanel=null;
 function _biClosePanel(){ if(_biPanel){ try{_biPanel.remove();}catch(e){} _biPanel=null; } }
 function _biOptRows(cur){
   var s=_biState; if(!s) return '';
-  return s.marks.map(function(mk,i){
-    var lbl=(blindMarkMap[mk]&&blindMarkMap[mk].label)||mk;
-    return '<div class="bi-pkopt'+(cur===mk?' active':'')+'" data-mk="'+esc(mk)+'">'
-      +'<span class="n">'+_biNums[i]+'</span><span class="sy">'+biMarkChip(mk)+'</span><span class="l">'+esc(lbl)+'</span></div>';
+  // 管理者画面と同じく選択肢は「色付きマークのみ」。番号やボトル名は正解のヒントになるため出さない。
+  return s.marks.map(function(mk){
+    return '<div class="bi-pkopt'+(cur===mk?' active':'')+'" data-mk="'+esc(mk)+'"><span class="sy">'+biMarkChip(mk)+'</span></div>';
   }).join('');
 }
 function _biOpenPanel(html,btnEl,onPick){
