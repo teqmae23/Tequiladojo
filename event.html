@@ -1123,16 +1123,10 @@ function _findByTid(tid){
   return null;
 }
 function _pName(p){ return (p&&(p.nickname||p.memberId))||'（会員）'; }
-// 各アイテム時点での参加メンバー配列(名前)を算出。起点は全参加者。
-// ただし「後から合流」する人はその合流時点まで含めない。離脱でその時点以降は除外。
+// 各アイテム時点での参加メンバー配列(名前)を算出。起点は0人。
+// 「合流」でその時点以降に加入、「離脱」でその時点以降に除外。
 function _computeRosters(enr){
-  var map={};
-  // 合流イベントで登場する人（＝後から合流する人）のキー集合
-  var joinKeys={};
-  enr.forEach(function(e){ if(_rosterOp(e.it)==='join'){ (e.it.nameParticipants||[]).forEach(function(np){ var p=_findByTid(np.id); joinKeys[p?p.id:('np:'+(np.id||np.name))]=true; }); } });
-  // 初期メンバー = 全参加者のうち、後から合流する人を除いた人
-  var cur={};
-  _participants.forEach(function(p){ if(!joinKeys[p.id]) cur[p.id]=_pName(p); });
+  var map={}, cur={};
   enr.forEach(function(e){
     var it=e.it, op=_rosterOp(it);
     if(op==='join'){ (it.nameParticipants||[]).forEach(function(np){ var p=_findByTid(np.id); var k=p?p.id:('np:'+(np.id||np.name)); cur[k]=(p?_pName(p):null)||np.name||'（会員）'; }); }
