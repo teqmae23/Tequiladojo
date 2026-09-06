@@ -267,7 +267,7 @@ a{color:var(--gold-d)}
 .ck-content{font-size:14.5px;color:var(--ink);line-height:1.7;margin:6px 0;white-space:pre-wrap}
 .ck-dl-inline{font-weight:700;color:var(--gold-d)}
 .ck-dl-inline.over{color:var(--red)}
-.ck-divider{border-top:1px solid var(--border);margin:10px 0 4px}
+.ck-divider{border-top:2px solid var(--ink);margin:10px 0 4px}
 .ck-btn{margin-top:8px;padding:9px 16px;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer}
 .ck-btn.todo{background:var(--gold-d);color:var(--cream)}
 .ck-btn.did{background:var(--teal);color:#fff}
@@ -278,7 +278,9 @@ a{color:var(--gold-d)}
 .ck-p{font-size:12px;padding:3px 9px;border-radius:12px;background:var(--cream2);color:var(--ink2)}
 .ck-p.ok{background:#e7f6f1;color:var(--teal)}
 .ck-prog-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;border:1px solid transparent;flex:0 0 auto}
-.ck-prog-sel{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.ck-prog-sel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.ck-prog-lbl{font-size:13px;font-weight:700;color:var(--ink2);margin-right:2px}
+.ck-prog-box{border:3px solid #e0872a;border-radius:12px;padding:10px 12px}
 .ck-prog-chip{font-size:14px;font-weight:600;padding:10px 18px;border-radius:18px;border:1.5px solid var(--border2);background:var(--white);color:var(--ink2);cursor:pointer}
 .ck-prog-chip.on{border-color:transparent}
 .ck-prog-chip.ro{cursor:default}
@@ -1704,7 +1706,7 @@ function messageFieldHtml(t, myc){
   var head='<div class="ck-msg"><label class="ck-msg-lbl">'+esc(lbl)+'：'+(range?'<span class="ck-msg-range">'+range+'</span>':'')+'</label>';
   // 桁数（最大文字数）が指定されていれば、その桁数に合わせた1行入力欄。無指定は複数行。
   if(t.msgMax){
-    return head+'<input type="text" class="ck-msg-in-fit" id="ckm-'+esc(t.id)+'" maxlength="'+t.msgMax+'" style="width:'+(t.msgMax+4)+'ch" placeholder="入力してください" value="'+esc(v)+'"></div>';
+    return head+'<input type="text" class="ck-msg-in-fit" id="ckm-'+esc(t.id)+'" maxlength="'+t.msgMax+'" style="width:'+(t.msgMax+4)+'ch" value="'+esc(v)+'"></div>';
   }
   return head+'<textarea class="ck-msg-in" id="ckm-'+esc(t.id)+'" placeholder="メッセージを入力してください">'+esc(v)+'</textarea></div>';
 }
@@ -1756,7 +1758,7 @@ function taskDetailHtml(t){
       if(t.requireFile && !(myc&&myc.fileUrl)) hh+='<div class="ck-file"><input type="file" id="ckf-'+esc(t.id)+'"><div class="ck-hint">「'+esc((st[st.length-1]||{}).label||'完了')+'」にはファイル提出が必要です</div></div>';
       hh+=submittedFileHtml(t, myc);
       hh+= done?submittedMessageHtml(t,myc):messageFieldHtml(t,myc);
-      hh+='<div class="ck-prog-sel">'+st.map(function(s){ return _progChip(s, myc&&myc.progress===s.id, false, t.id); }).join('')+'</div>';
+      hh+='<div class="ck-prog-sel ck-prog-box"><span class="ck-prog-lbl">進捗状況を選択：</span>'+st.map(function(s){ return _progChip(s, myc&&myc.progress===s.id, false, t.id); }).join('')+'</div>';
       hh+='<div class="ck-prog-note">進捗を選んで下さい。「'+esc((st[st.length-1]||{}).label||'完了')+'」で完了になります。選択済みのボタンをもう押すと未選択に戻ります。</div>';
     } else {
       if(t.requireFile && !(myc&&myc.fileUrl)) hh+='<div class="ck-file"><input type="file" id="ckf-'+esc(t.id)+'"><div class="ck-hint">完了にはファイル提出が必要です</div></div>';
