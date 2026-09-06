@@ -1676,7 +1676,8 @@ function _progChip(st, on, ro, taskId){
 function submittedFileHtml(t, myc){
   if(!(myc&&myc.fileUrl)) return '';
   var ap=myc.approved?'<span class="ck-appr ok">✅ 承認済み</span>':'<span class="ck-appr no">⏳ 未承認</span>';
-  var del=_isReal?'<button type="button" class="ck-del" onclick="deleteSubmission(\''+esc(t.id)+'\')">削除</button>':'';
+  // 承認済みは本人が削除できない（削除ボタンを出さない）。削除するには管理者が承認解除する。
+  var del=(_isReal && !myc.approved)?'<button type="button" class="ck-del" onclick="deleteSubmission(\''+esc(t.id)+'\')">削除</button>':'';
   return '<div class="ck-sub">提出済: <a href="'+esc(myc.fileUrl)+'" target="_blank" rel="noopener">'+esc(myc.fileName||'提出ファイル')+'</a> '+ap+del+'</div>';
 }
 function taskDetailHtml(t){
@@ -1836,18 +1837,24 @@ function uploadSubmission(t,file){
     });
 }
 // 提出ファイルを削除して未提出に戻す（再アップロード可・承認もリセット）
+var _APPROVED_MSG='管理者承認済のため削除できません。再提出したい場合は管理者にご連絡下さい。';
 function deleteSubmission(taskId){
   if(!_isReal) return;
   var t=_tasks.find(function(x){return x.id===taskId;}); if(!t) return;
   var myc=_myComp(t); if(!(myc&&myc.fileUrl)) return;
+  if(myc.approved){ alert(_APPROVED_MSG); loadChecklist(); return; } // 手元の状態で既に承認済み
   if(!confirm('提出ファイルを削除して未提出に戻します。よろしいですか？')) return;
-  var docId=myc.submissionDocId||('sub_'+t.id+'_'+_uid);
-  var delDoc=db.collection('events').doc(eventId).collection('documents').doc(docId).delete().catch(function(){});
-  if(storage && myc.submissionPath){ storage.ref(myc.submissionPath).delete().catch(function(){}); }
-  var reset={ fileUrl:'', fileName:'', submissionDocId:'', submissionPath:'', approved:false, done:false };
-  if(_progStates(t) && myc.progress===_progLastId(t)) reset.progress=''; // 完了段階だった場合は解除
-  delDoc.then(function(){ return setCompletion(taskId, reset); })
-    .then(function(){ toast('削除しました'); })
+  // 承認後リロード前のケース対策: 削除前に最新の承認状態をサーバーで確認
+  db.collection('events').doc(eventId).collection('tasks').doc(taskId).collection('completions').doc(_uid).get()
+    .then(function(d){
+      if(d.exists && d.data() && d.data().approved){ alert(_APPROVED_MSG); loadChecklist(); return; }
+      var docId=myc.submissionDocId||('sub_'+t.id+'_'+_uid);
+      var delDoc=db.collection('events').doc(eventId).collection('documents').doc(docId).delete().catch(function(){});
+      if(storage && myc.submissionPath){ storage.ref(myc.submissionPath).delete().catch(function(){}); }
+      var reset={ fileUrl:'', fileName:'', submissionDocId:'', submissionPath:'', approved:false, done:false };
+      if(_progStates(t) && myc.progress===_progLastId(t)) reset.progress=''; // 完了段階だった場合は解除
+      return delDoc.then(function(){ return setCompletion(taskId, reset); }).then(function(){ toast('削除しました'); });
+    })
     .catch(function(e){ toast('削除失敗: '+e.message); });
 }
 function setCompletion(taskId, extra){
