@@ -110,6 +110,7 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
 .doc-appr{font-size:10px;font-weight:700;color:#1f7a44;flex:0 0 auto}
 .doc-apbtn{border:1px solid var(--border2);background:var(--cream2);color:var(--ink2);border-radius:8px;font-size:11px;font-weight:700;padding:3px 9px;cursor:pointer;flex:0 0 auto}
 .doc-apbtn.on{background:var(--teal);color:#fff;border-color:var(--teal)}
+.doc-msg{flex-basis:100%;font-size:12px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:6px 9px;margin:2px 0 4px;white-space:pre-wrap;word-break:break-word;line-height:1.5}
 .tk-item{display:flex;align-items:center;gap:9px;background:var(--white);border:1px solid var(--border);border-left-width:4px;border-radius:var(--r);padding:9px 11px;margin-bottom:6px;cursor:pointer}
 .tk-item.pub{border-left-color:var(--teal)}
 .tk-item.priv{border-left-color:var(--ink3)}
@@ -554,6 +555,17 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
         </div>
       </div>
       <label class="reqlbl"><input type="checkbox" id="tk-reqfile"> 完了時にファイル提出を求める（提出物はドキュメント管理「提出書類」へ）</label>
+      <div class="fg" style="margin-top:8px">
+        <label class="reqlbl"><input type="checkbox" id="tk-reqmsg" onchange="onTkReqMsg()"> 完了時にメッセージ送信を求める（未入力では完了できません）</label>
+        <div id="tk-msg-box" style="display:none;margin-top:6px;border:1px solid var(--border);border-radius:var(--r);padding:8px 10px">
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">参加者は「タイトル：」の後の入力欄にメッセージを入力してから完了できます。</div>
+          <div class="row2">
+            <div class="fg"><label class="fl">最小文字数（任意）</label><input class="fi" id="tk-msg-min" type="number" min="0" placeholder="例: 1"></div>
+            <div class="fg"><label class="fl">最大文字数（任意）</label><input class="fi" id="tk-msg-max" type="number" min="0" placeholder="例: 200"></div>
+          </div>
+          <div style="font-size:11px;color:var(--ink3)">桁数（文字数）を n〜m で指定できます。空欄は制限なし。</div>
+        </div>
+      </div>
       <div class="fg" style="margin-top:10px">
         <label class="reqlbl"><input type="checkbox" id="tk-prog-en" onchange="onTkProgEn()"> 進捗管理を使う（完了/未完了ではなく段階で管理）</label>
         <div id="tk-prog-box" style="display:none;margin-top:6px">
@@ -1983,6 +1995,7 @@ function renderTaskList(){
   g('tk-list').innerHTML=_tkItems.map(function(t){
     var pub=(t.visibility!=='private');
     var sub=[]; if(t.deadline) sub.push('期限 '+esc(t.deadline)); if(t.requireFile) sub.push('📎ファイル提出');
+    if(t.requireMessage) sub.push('✍️メッセージ'+((t.msgMin||t.msgMax)?('('+(t.msgMin||0)+'〜'+(t.msgMax||'')+')'):''));
     if(t.progressEnabled && Array.isArray(t.progressStates) && t.progressStates.length) sub.push('📊進捗'+t.progressStates.length+'段階');
     if(t.audience==='selected') sub.push('👥対象'+((t.audienceIds||[]).length)+'名'+(t.showScope==='selected'?'（限定表示）':''));
     return '<div class="tk-item '+(pub?'pub':'priv')+'" onclick="openTaskEd(\''+esc(t.id)+'\')">'
@@ -2001,6 +2014,11 @@ function openTaskEd(id){
   g('tk-deadline').value=t?(t.deadline||''):'';
   g('tk-vis').value=t?(t.visibility||'public'):'public';
   g('tk-reqfile').checked=!!(t&&t.requireFile);
+  // 完了時メッセージ
+  g('tk-reqmsg').checked=!!(t&&t.requireMessage);
+  g('tk-msg-min').value=(t&&t.msgMin)?t.msgMin:'';
+  g('tk-msg-max').value=(t&&t.msgMax)?t.msgMax:'';
+  onTkReqMsg();
   // 対象者・表示範囲
   var aud=(t&&t.audience==='selected')?'selected':'all';
   _tkAudSel={}; if(t&&Array.isArray(t.audienceIds)) t.audienceIds.forEach(function(id){ _tkAudSel[id]=true; });
@@ -2044,6 +2062,7 @@ function renderTkAud(){
   });
 }
 // ── 進捗段階エディタ ──
+function onTkReqMsg(){ g('tk-msg-box').style.display=g('tk-reqmsg').checked?'block':'none'; }
 function onTkProgEn(keep){
   var en=g('tk-prog-en').checked;
   g('tk-prog-box').style.display=en?'block':'none';
@@ -2086,10 +2105,16 @@ function saveTask(){
     progStates=_tkProg.map(function(s){ return {id:s.id||newProgId(), label:(s.label||'').trim(), color:s.color||'gray'}; }).filter(function(s){ return s.label; });
     if(progStates.length<2){ g('tk-err').textContent='進捗管理は2段階以上を設定してください（最後が完了）'; return; }
   }
+  // 完了時メッセージの桁数指定
+  var reqMsg=!!g('tk-reqmsg').checked;
+  var msgMin=parseInt(g('tk-msg-min').value,10); if(isNaN(msgMin)||msgMin<0) msgMin=0;
+  var msgMax=parseInt(g('tk-msg-max').value,10); if(isNaN(msgMax)||msgMax<0) msgMax=0;
+  if(reqMsg && msgMin && msgMax && msgMin>msgMax){ g('tk-err').textContent='文字数は「最小 ≦ 最大」で指定してください'; return; }
   var data={
     title:title, content:(g('tk-content').value||'').trim(),
     deadline:g('tk-deadline').value||'', visibility:(g('tk-vis').value==='private'?'private':'public'),
     requireFile:!!g('tk-reqfile').checked,
+    requireMessage:reqMsg, msgMin:msgMin, msgMax:msgMax,
     audience:aud, audienceIds:audienceIds, showScope:showScope,
     progressEnabled:progEnabled, progressStates:progStates,
     updatedAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -2130,7 +2155,7 @@ function delTask(){
 }
 
 /* ════════ ドキュメント保管庫（⑤） ════════ */
-var _docEventId=null, _docs=[], _docTasks=[], _docRoster=[], _docTaskExp={};
+var _docEventId=null, _docs=[], _docTasks=[], _docRoster=[], _docTaskExp={}, _docMsgs={};
 function docCol(eid){ return db.collection('events').doc(eid).collection('documents'); }
 function openDocMgr(eventId){
   _docEventId=eventId; _docTaskExp={};
@@ -2177,6 +2202,16 @@ function loadDocs(){
     _docTasks.sort(function(a,b){ return (a.seq||0)-(b.seq||0); });
     _docRoster=res[2]||[];
     renderDocs();
+    // 完了時メッセージ（requireMessage項目）のcompletionを読み込んで反映
+    _docMsgs={};
+    var msgTasks=_docTasks.filter(function(t){ return t.requireMessage; });
+    if(msgTasks.length){
+      Promise.all(msgTasks.map(function(t){
+        return taskCol(_docEventId).doc(t.id).collection('completions').get()
+          .then(function(cs){ var m={}; cs.docs.forEach(function(d){ var c=d.data()||{}; if(c.message) m[d.id]=c.message; }); _docMsgs[t.id]=m; })
+          .catch(function(){ _docMsgs[t.id]={}; });
+      })).then(function(){ renderDocs(); });
+    }
   }).catch(function(e){ g('doc-list').innerHTML='<div class="ec">読込失敗: '+esc(e.message)+'</div>'; });
 }
 function fmtSize(n){ if(!n) return ''; return n>1048576?((n/1048576).toFixed(1)+'MB'):(Math.round(n/1024)+'KB'); }
@@ -2207,8 +2242,8 @@ function renderSubmissions(){
   var groups=[], handled={};
   _docTasks.forEach(function(t){
     var docs=byTask[t.id]||[];
-    if(t.requireFile || docs.length){
-      groups.push({ id:t.id, title:t.title||'（無題）', docs:docs }); handled[t.id]=true;
+    if(t.requireFile || t.requireMessage || docs.length){
+      groups.push({ id:t.id, title:t.title||'（無題）', docs:docs, requireMessage:!!t.requireMessage }); handled[t.id]=true;
     }
   });
   // 削除された項目・taskId欠落の提出物
@@ -2232,10 +2267,14 @@ function docTaskGroup(gp, idx){
       +ap
       +'<button class="rm" title="削除" onclick="delDoc(\''+esc(doc.id)+'\')">×</button></div>';
   }
+  var msgs=_docMsgs[gp.id]||{};
+  function msgHtml(p){ if(!gp.requireMessage) return ''; var m=msgs[p.uid]||msgs[p.tid]||''; return m?('<div class="doc-msg">✍️ '+esc(m)+'</div>'):''; }
   var rows=_docRoster.map(function(p){
     var doc=null;
     for(var i=0;i<gp.docs.length;i++){ if(!matched[gp.docs[i].id]&&_subMatch(gp.docs[i],p)){ doc=gp.docs[i]; matched[doc.id]=true; break; } }
-    if(doc){ subCount++; return fileRow(p.name, doc); }
+    var m=msgHtml(p);
+    if(doc){ subCount++; return fileRow(p.name, doc)+m; }
+    if(gp.requireMessage && (msgs[p.uid]||msgs[p.tid])){ subCount++; return '<div class="doc-subrow"><span class="nm">'+esc(p.name)+'</span><span class="doc-appr ok">✍️送信済</span></div>'+m; }
     return '<div class="doc-subrow"><span class="nm">'+esc(p.name)+'</span><span class="unsub">未提出</span></div>';
   });
   // 名簿に居ない提出者（イベント離脱者等）
