@@ -541,7 +541,7 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
         <div class="fg"><label class="fl">公開範囲</label><select class="fi" id="tk-vis"><option value="public">公開（全員の状況を共有）</option><option value="private">非公開（本人のみ）</option></select></div>
       </div>
       <div class="fg">
-        <label class="fl">対象者（このチェックを行う人）</label>
+        <label class="fl">対象者（このタスクを行う人）</label>
         <label class="reqlbl"><input type="radio" name="tk-aud" value="all" checked onchange="onTkAud()"> 全員</label>
         <label class="reqlbl"><input type="radio" name="tk-aud" value="selected" onchange="onTkAud()"> 選択者のみ</label>
         <div id="tk-aud-box" style="display:none;margin-top:6px">
@@ -558,7 +558,8 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
       <div class="fg" style="margin-top:8px">
         <label class="reqlbl"><input type="checkbox" id="tk-reqmsg" onchange="onTkReqMsg()"> 完了時にメッセージ送信を求める（未入力では完了できません）</label>
         <div id="tk-msg-box" style="display:none;margin-top:6px;border:1px solid var(--border);border-radius:var(--r);padding:8px 10px">
-          <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">参加者は「タイトル：」の後の入力欄にメッセージを入力してから完了できます。</div>
+          <div class="fg"><label class="fl">入力欄のラベル（任意）</label><input class="fi" id="tk-msg-label" placeholder="未入力ならタイトルを使用（例: 参加人数、連絡事項）"></div>
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">参加者は「ラベル：」の後の入力欄にメッセージを入力してから完了できます。</div>
           <div class="row2">
             <div class="fg"><label class="fl">最小文字数（任意）</label><input class="fi" id="tk-msg-min" type="number" min="0" placeholder="例: 1"></div>
             <div class="fg"><label class="fl">最大文字数（任意）</label><input class="fi" id="tk-msg-max" type="number" min="0" placeholder="例: 200"></div>
@@ -2016,6 +2017,7 @@ function openTaskEd(id){
   g('tk-reqfile').checked=!!(t&&t.requireFile);
   // 完了時メッセージ
   g('tk-reqmsg').checked=!!(t&&t.requireMessage);
+  g('tk-msg-label').value=(t&&t.msgLabel)||'';
   g('tk-msg-min').value=(t&&t.msgMin)?t.msgMin:'';
   g('tk-msg-max').value=(t&&t.msgMax)?t.msgMax:'';
   onTkReqMsg();
@@ -2114,7 +2116,7 @@ function saveTask(){
     title:title, content:(g('tk-content').value||'').trim(),
     deadline:g('tk-deadline').value||'', visibility:(g('tk-vis').value==='private'?'private':'public'),
     requireFile:!!g('tk-reqfile').checked,
-    requireMessage:reqMsg, msgMin:msgMin, msgMax:msgMax,
+    requireMessage:reqMsg, msgLabel:(g('tk-msg-label').value||'').trim(), msgMin:msgMin, msgMax:msgMax,
     audience:aud, audienceIds:audienceIds, showScope:showScope,
     progressEnabled:progEnabled, progressStates:progStates,
     updatedAt:firebase.firestore.FieldValue.serverTimestamp()
