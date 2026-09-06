@@ -361,6 +361,7 @@ tbody tr:hover{background:rgba(200,146,30,.025)}
         <div class="fg"><label class="fl">座席数<span class="req">*</span></label><input class="fi" id="lay-seats" type="number" min="1" max="99" placeholder="8"></div>
       </div>
       <div class="fg"><label class="fl">名称<span class="req">*</span></label><input class="fi" id="lay-name" placeholder="通常"></div>
+      <div class="fg"><label class="fl" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="lay-default" style="width:auto"> 開店時のデフォルトにする</label><div style="font-size:11px;color:var(--ink3);margin-top:2px">オンにすると開店画面で最初からこのレイアウトが選択されます（デフォルトは1つだけ）。</div></div>
       <div class="fg">
         <label class="fl">レイアウト画像</label>
         <input type="file" id="lay-img-file" accept="image/*" style="font-size:12px;margin-bottom:6px">
@@ -967,7 +968,8 @@ function renderLayouts(){
   if(!list.length){ tb.innerHTML='<tr><td colspan="5" class="ec">データがありません</td></tr>'; return; }
   tb.innerHTML=list.map(function(r){
     var imgCell=r.imageData?'<img src="'+r.imageData+'" style="max-height:40px;max-width:60px;border-radius:3px">':'<span class="dim" style="font-size:11px">なし</span>';
-    return '<tr><td class="mono">'+r.id+'</td><td>'+(r.name||"—")+'</td><td class="mono dim" style="text-align:right">'+(r.seats||"—")+'</td><td>'+imgCell+'</td><td><div class="acts"><button class="btn bs sm" data-edit-layout="'+r.id+'">編集</button><button class="btn bd sm" data-del="layouts" data-del-id="'+r.id+'" data-del-label="レイアウト">削除</button></div></td></tr>';
+    var nameCell=(r.name||"—")+(r.isDefault?' <span style="font-size:10px;font-weight:700;color:var(--gold-d);background:rgba(200,146,30,.15);border-radius:3px;padding:1px 5px;margin-left:4px">★既定</span>':'');
+    return '<tr><td class="mono">'+r.id+'</td><td>'+nameCell+'</td><td class="mono dim" style="text-align:right">'+(r.seats||"—")+'</td><td>'+imgCell+'</td><td><div class="acts"><button class="btn bs sm" data-edit-layout="'+r.id+'">編集</button><button class="btn bd sm" data-del="layouts" data-del-id="'+r.id+'" data-del-label="レイアウト">削除</button></div></td></tr>';
   }).join("");
 }
 
@@ -1332,6 +1334,7 @@ function openLayoutModal(id){
   if(id){
     var r=cache.layouts.find(function(l){return l.id===id;});
     sv("lay-id",id); sv("lay-name",r?r.name:""); sv("lay-seats",r?r.seats:"");
+    g("lay-default").checked=!!(r&&r.isDefault);
     idEl.readOnly=true; idEl.style.background="var(--cream2)";
     layImgData=r?r.imageData||"":"";
     var el=g("lay-img-el"), wrap=g("lay-img-preview"), none=g("lay-img-none");
@@ -1339,6 +1342,7 @@ function openLayoutModal(id){
     else { if(wrap) wrap.style.display="none"; if(none) none.style.display="block"; }
   } else {
     sv("lay-id",""); sv("lay-name",""); sv("lay-seats","");
+    g("lay-default").checked=false;
     idEl.readOnly=false; idEl.style.background="";
     var wrap=g("lay-img-preview"), none=g("lay-img-none");
     if(wrap) wrap.style.display="none"; if(none) none.style.display="block";
@@ -1352,7 +1356,15 @@ g("btn-save-layout").addEventListener("click",function(){
   if(!id||id.length!==2){ toast("座席ID（2桁）は必須です","err"); return; }
   if(!name){ toast("名称は必須です","err"); return; }
   if(!seats){ toast("座席数は必須です","err"); return; }
-  journaledSet("layouts",id,{layoutId:id,name:name,seats:seats,imageData:layImgData||null},{merge:true})
+  var isDefault=!!g("lay-default").checked;
+  journaledSet("layouts",id,{layoutId:id,name:name,seats:seats,imageData:layImgData||null,isDefault:isDefault},{merge:true})
+    .then(function(){
+      // デフォルトは1つだけ。他のレイアウトの isDefault を解除する。
+      if(isDefault){
+        var others=(cache.layouts||[]).filter(function(l){ return l.id!==id && l.isDefault; });
+        return Promise.all(others.map(function(l){ return db.collection("layouts").doc(l.id).set({isDefault:false},{merge:true}); }));
+      }
+    })
     .then(function(){ toast(editId.layout?"レイアウトを更新しました":"レイアウトを登録しました"); closeM("m-layout"); bumpAndRender("layouts"); loadLayouts(); })
     .catch(function(e){ toast("保存失敗: "+e.message,"err"); });
 });

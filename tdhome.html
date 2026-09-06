@@ -139,6 +139,8 @@ details[open]>.nav-sum::before{transform:rotate(90deg)}
 .staff-row:last-child{border-bottom:none}
 .staff-email{flex:1;color:var(--ink2)}
 .staff-role-sel{padding:5px 8px;border:1px solid var(--border2);border-radius:var(--r);font-size:12px;background:var(--cream);cursor:pointer}
+.staff-att{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink2);white-space:nowrap;cursor:pointer;flex:0 0 auto}
+.staff-att-na{font-size:11px;color:var(--ink3);flex:0 0 auto}
 .btn-sm{padding:5px 12px;border-radius:var(--r);font-size:12px;border:none;cursor:pointer;font-weight:500}
 .btn-danger{background:#fae8e4;color:var(--red)}
 .btn-primary-sm{background:var(--gold-d);color:var(--cream)}
@@ -435,12 +437,23 @@ async function loadStaffList(){
   var area=g("staff-list-area");
   area.textContent="読み込み中...";
   try{
-    var result=await functions.httpsCallable("getStaffList")({});
-    var list=result.data.staff||[];
+    var res=await Promise.all([
+      functions.httpsCallable("getStaffList")({}),
+      db.collection("members").where("role","in",["owner","staff"]).get().catch(function(){return {docs:[]};})
+    ]);
+    var list=res[0].data.staff||[];
+    // uid/email から会員doc（開店時デフォルト出勤フラグ）を引けるようにする
+    var byUid={}, byEmail={};
+    res[1].docs.forEach(function(d){ var m=d.data()||{}; var o={id:d.id, def:!!m.defaultAttend}; if(m.authUid) byUid[m.authUid]=o; if(m.email) byEmail[String(m.email).toLowerCase()]=o; });
     if(!list.length){ area.innerHTML='<div style="color:var(--ink3);padding:12px 0">スタッフが登録されていません</div>'; return; }
     area.innerHTML=list.map(function(s){
+      var mm=byUid[s.uid]||(s.email?byEmail[String(s.email).toLowerCase()]:null)||null;
+      var att = mm
+        ? '<label class="staff-att" title="開店画面で出勤にデフォルトチェックを付ける"><input type="checkbox"'+(mm.def?" checked":"")+' onchange="toggleStaffDefaultAttend(\''+esc(mm.id)+'\',this.checked)"> 開店時に出勤</label>'
+        : '<span class="staff-att-na" title="会員データが見つかりません">—</span>';
       return '<div class="staff-row">'+
         '<span class="staff-email">'+esc(s.email||s.uid)+'</span>'+
+        att+
         '<select class="staff-role-sel" data-uid="'+esc(s.uid)+'" onchange="updateStaffRole(this)">'+
           '<option value="staff"'+(s.role==="staff"?" selected":"")+'>staff</option>'+
           '<option value="owner"'+(s.role==="owner"?" selected":"")+'>owner</option>'+
@@ -452,6 +465,11 @@ async function loadStaffList(){
 }
 async function updateStaffRole(sel){
   try{ await functions.httpsCallable("setUserRole")({uid:sel.dataset.uid,role:sel.value}); showToast("変更しました"); }
+  catch(e){ showToast("失敗: "+e.message,true); loadStaffList(); }
+}
+// 開店時のデフォルト出勤フラグ（会員docに保存）。開店画面の出勤リストで初期チェックに使う。
+async function toggleStaffDefaultAttend(memberId, val){
+  try{ await db.collection("members").doc(memberId).set({defaultAttend:!!val},{merge:true}); showToast(val?"開店時に出勤（デフォルトON）":"デフォルト出勤OFF"); }
   catch(e){ showToast("失敗: "+e.message,true); loadStaffList(); }
 }
 function removeStaffByAttr(btn){ removeStaff(btn.dataset.uid,btn.dataset.email); }
