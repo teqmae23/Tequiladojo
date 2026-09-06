@@ -1464,11 +1464,11 @@ function renderBiTable(){
   var s=_biState; if(!s) return;
   var marks=s.marks, revealed=s.revealed, me=_biMe();
   var editable=!!(me && s.inputOpen && !me.confirmed);   // 自分の行が編集可能か
-  // 各マーク（グラス）のボトル名を注文から引く（管理者側と同様にボトル名＋番号を表示）
+  // 各マーク（番号）のボトル名を注文から引く（「マーク対応」に管理者と同様にボトル名を表示）
   var markName={};
   (allOrders||[]).forEach(function(o){ if(o&&o.batchId===s.batchId&&o.blindId===1&&o.blindMarkId&&o.productName&&!markName[o.blindMarkId]) markName[o.blindMarkId]=o.productName; });
-  var _biLabel=function(mk){ return markName[mk]||(blindMarkMap[mk]&&blindMarkMap[mk].label)||mk; };
-  var optHtml=function(sel){ return '<option value="">—</option>'+marks.map(function(mk,i){ return '<option value="'+esc(mk)+'"'+(sel===mk?' selected':'')+'>'+_biNums[i]+' '+esc(_biLabel(mk))+'</option>'; }).join(''); };
+  // 選択欄はマーク（番号＋マークラベル）。ボトル名は下の「マーク対応」で表示する。
+  var optHtml=function(sel){ return '<option value="">—</option>'+marks.map(function(mk,i){ return '<option value="'+esc(mk)+'"'+(sel===mk?' selected':'')+'>'+_biNums[i]+' '+esc((blindMarkMap[mk]&&blindMarkMap[mk].label)||mk)+'</option>'; }).join(''); };
   // ヘッダ
   var thMarks=marks.map(function(mk,i){
     return '<th>'+_biNums[i]+(revealed?('<br>'+biMarkChip(mk)):'')+'</th>';
@@ -1498,7 +1498,8 @@ function renderBiTable(){
   }).join('');
   // 凡例
   var legend=marks.map(function(mk,i){
-    return '<div class="bleg-row">'+_biNums[i]+' '+(revealed?biMarkChip(mk)+' ':'')+'<span>'+esc(_biLabel(mk))+'</span></div>';
+    var bn=markName[mk]||(blindMarkMap[mk]&&blindMarkMap[mk].label)||mk;
+    return '<div class="bleg-row">'+_biNums[i]+' '+(revealed?biMarkChip(mk)+' ':'')+'<span>'+esc(bn)+'</span></div>';
   }).join('');
   // 操作エリア（自分用）
   var action='';
