@@ -1663,7 +1663,13 @@ function _idsHas(ids, uid, mid){ if(!ids||!ids.length) return false; if(uid && i
 function _selfInAud(t){ if(t.audience!=='selected') return true; return _idsHas(t.audienceIds, _uid, _memberId); }
 function _pInAud(t,p){ if(t.audience!=='selected') return true; var uid=(p.id&&String(p.id).indexOf('mid:')!==0)?p.id:''; return _idsHas(t.audienceIds, uid, p.memberId); }
 // 会員がこの項目を表示できるか（対象者=選択者のとき、表示範囲=全員なら対象外はグレー表示、選択者のみなら非表示）
-function _taskVisibleSelf(t){ if(_isStaff) return true; if(t.audience!=='selected') return true; if(_selfInAud(t)) return true; return t.showScope!=='selected'; }
+// 「選択者のみに見せる（非表示）」は対象者以外には管理者/スタッフにも表示しない（プレビューを実際の見え方に合わせる）。
+function _taskVisibleSelf(t){
+  if(t.audience!=='selected') return true;
+  if(_selfInAud(t)) return true;
+  if(t.showScope==='selected') return false; // 非表示は対象者以外の全員に適用
+  return true; // 「全員に見せる」= 対象外はグレー表示（管理者含め閲覧可）
+}
 // 会員がこの項目を操作できるか（対象者本人か）
 function _taskActiveSelf(t){ return _selfInAud(t); }
 function _taskMyState(t){
