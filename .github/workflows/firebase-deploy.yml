@@ -52,6 +52,8 @@ jobs:
       - name: Deploy Functions (best effort)
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || git diff --name-only HEAD^ HEAD | grep -q '^functions/'; then
+            echo "Installing functions dependencies..."
+            (cd functions && (npm ci || npm install))
             echo "Deploying Cloud Functions..."
             firebase deploy --only functions --project tequiladojo --non-interactive \
               || echo "::warning::Functionsのデプロイに失敗しました。サービスアカウントに Cloud Functions/Secret/Scheduler 権限が必要です。Cloud Shellから firebase deploy --only functions を実行してください"
