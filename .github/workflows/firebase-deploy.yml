@@ -3,11 +3,14 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: {}   # 手動実行で Functions を強制デプロイできる
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # functions/ の変更検出（HEAD^ 比較）に必要
       - uses: google-github-actions/auth@v2
         id: auth
         with:
@@ -41,5 +44,19 @@ jobs:
         run: |
           firebase deploy --only storage --project tequiladojo --non-interactive \
             || echo "::warning::Storageルールのデプロイに失敗しました。Cloud Shellから firebase deploy --only storage を実行してください"
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+      # Cloud Functions は functions/ に変更があった時のみデプロイ（手動実行時は強制）。
+      # 失敗してもCIは止めない（権限不足時は警告のみ）。温湿度ログ(logEnvHourly)・
+      # 注文への温湿度スタンプ(stampOrderEnv)等はここでデプロイされないと反映されない。
+      - name: Deploy Functions (best effort)
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || git diff --name-only HEAD^ HEAD | grep -q '^functions/'; then
+            echo "Deploying Cloud Functions..."
+            firebase deploy --only functions --project tequiladojo --non-interactive \
+              || echo "::warning::Functionsのデプロイに失敗しました。サービスアカウントに Cloud Functions/Secret/Scheduler 権限が必要です。Cloud Shellから firebase deploy --only functions を実行してください"
+          else
+            echo "functions/ に変更なし。Functionsデプロイはスキップします。"
+          fi
         env:
           GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
