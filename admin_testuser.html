@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テストユーザー作成 — テキーラ道場</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+<script>
+var FIREBASE_CONFIG={
+  apiKey:"AIzaSyD6a3i-N1RyXyAfXmztPQrYtx4x62YGth0",
+  authDomain:"tequiladojo.firebaseapp.com",
+  projectId:"tequiladojo",
+  storageBucket:"tequiladojo.firebasestorage.app",
+  messagingSenderId:"56663296233",
+  appId:"1:56663296233:web:c8cac2fcbeb4faa09e0878",
+  measurementId:"G-KMS18946JQ"
+};
+</script>
+<script src="/auth-role.js?v=20260829"></script>
+<style>
+:root{
+  --ink:#18110a;--ink2:#3a2c14;--ink3:#6b5a44;
+  --gold:#c8921e;--gold-l:#e8b84a;--gold-d:#7a5610;
+  --cream:#faf7f1;--cream2:#f0ebe0;--cream3:#e4ddd0;--white:#fff;
+  --red:#b03020;--teal:#1a6e58;--blue:#1565c0;
+  --border:rgba(160,130,100,.18);--border2:rgba(160,130,100,.32);
+  --shadow:0 1px 12px rgba(24,17,10,.07);--shadow-lg:0 6px 36px rgba(24,17,10,.13);
+  --r:8px;--rl:12px;
+  --serif:'Hiragino Mincho ProN','Yu Mincho',serif;
+  --sans:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+  --mono:'SFMono-Regular',Consolas,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--cream);color:var(--ink);min-height:100vh}
+button{cursor:pointer;font-family:var(--sans)} input{font-family:var(--sans)}
+#login-screen{display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+.lcard{width:100%;max-width:360px;background:var(--white);border:1px solid var(--border2);border-radius:var(--rl);padding:40px 30px;box-shadow:var(--shadow-lg)}
+.llogo{text-align:center;font-size:40px;margin-bottom:6px}
+.lbrand{font-family:var(--serif);font-size:22px;color:var(--gold-d);letter-spacing:.1em;text-align:center}
+.lsub{text-align:center;font-size:10px;letter-spacing:.18em;color:var(--ink3);margin-bottom:24px}
+.lcard label{display:block;font-size:10px;color:var(--ink3);margin:12px 0 4px}
+.lcard input{width:100%;padding:11px 12px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--cream)}
+.lerr{min-height:16px;font-size:12px;color:var(--red);margin-top:8px;text-align:center}
+.lbtn{width:100%;margin-top:18px;padding:12px;background:var(--gold-d);color:var(--cream);border:none;border-radius:var(--r);font-size:13px}
+.hdr{background:var(--ink);padding:0 16px;height:56px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:40}
+.hdr-title{font-family:var(--serif);font-size:18px;color:var(--gold-l);letter-spacing:.06em}
+.hdr-right{margin-left:auto;display:flex;gap:8px}
+.hdr-nav{padding:6px 11px;border:1px solid rgba(255,255,255,.16);border-radius:6px;color:var(--gold-l);font-size:11px;text-decoration:none;background:none}
+#app{display:none}
+.wrap{max-width:720px;margin:0 auto;padding:18px 14px 60px}
+.sect{background:var(--white);border:1px solid var(--border);border-radius:var(--rl);box-shadow:var(--shadow);padding:16px;margin-bottom:18px}
+.sect-title{font-family:var(--serif);font-size:18px;color:var(--gold-d);margin-bottom:6px}
+.note{font-size:12px;color:var(--ink2);line-height:1.7;background:var(--cream2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px;margin-bottom:14px}
+.note b{color:var(--ink)}
+.trow{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:11px;color:var(--ink2);font-weight:600}
+.field input{padding:9px 11px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--cream)}
+.field input.mono{font-family:var(--mono)}
+.btn{border:none;border-radius:var(--r);padding:9px 15px;font-size:13px;font-weight:600}
+.bp{background:var(--gold-d);color:var(--cream)} .bg2{background:var(--cream2);color:var(--ink2);border:1px solid var(--border2)}
+.bd{background:#fff;color:var(--red);border:1px solid var(--cream3);padding:9px 12px}
+.actions{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.log{margin-top:14px;font-size:12.5px}
+.log-row{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-radius:var(--r);margin-bottom:6px;line-height:1.6}
+.log-row .ic{flex-shrink:0;font-weight:700}
+.log-row.ok{background:#e7f4ee;color:#155e43}
+.log-row.err{background:#fbe6e2;color:#9a2617}
+.log-row.skip{background:var(--cream2);color:var(--ink2)}
+.log-row .mono{font-family:var(--mono)}
+.hint{font-size:11px;color:var(--ink3);margin-top:8px;line-height:1.7}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="lcard">
+    <div class="llogo">🧪</div>
+    <div class="lbrand">テキーラ道場</div>
+    <div class="lsub">テストユーザー作成（オーナー専用）</div>
+    <label>メールアドレス</label>
+    <input type="email" id="lemail" autocomplete="username">
+    <label>パスワード</label>
+    <input type="password" id="lpass" autocomplete="current-password">
+    <div class="lerr" id="lerr"></div>
+    <button class="lbtn" id="lbtn">ログイン</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="hdr">
+    <div class="hdr-title">🧪 テストユーザー作成</div>
+    <div class="hdr-right">
+      <a class="hdr-nav" href="/admin_customer.html">会員管理</a>
+      <a class="hdr-nav" href="/tdhome.html">管理TOP</a>
+      <button class="hdr-nav" id="btn-logout" style="cursor:pointer">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="sect">
+      <div class="sect-title">テスト会員を作成</div>
+      <div class="note">
+        会員ID＋パスワードでログインできる<b>テスト用の一般会員</b>を作成します（メールアドレス不要）。<br>
+        ログインID＝会員ID（例: <b>250001</b>）、内部の認証メールは <span class="mono">&lt;ID&gt;@tequiladojo.member</span> になります。<br>
+        ・<b>members</b> ドキュメント作成 ＋ <b>adminAuthOperation</b> で認証アカウント作成まで一括で行います（オーナー権限で実行）。<br>
+        ・既に同IDが存在する場合はスキップします。<b>isTest:true</b> を付与するので後から識別・削除できます。
+      </div>
+
+      <div id="rows"></div>
+
+      <div class="actions">
+        <button class="btn bg2" id="btn-add">＋ 行を追加</button>
+        <button class="btn bp" id="btn-create">選択したユーザーを作成する</button>
+      </div>
+      <div class="hint">パスワードは6文字以上が必要です。作成後、会員ページ（/member.html）からID＋パスワードでログインできます。</div>
+
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+firebase.initializeApp(FIREBASE_CONFIG);
+var auth=firebase.auth(), db=firebase.firestore();
+var fbFunctions=firebase.app().functions('asia-northeast1');
+function g(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// 初期プリセット（ご依頼の2件）
+var _preset=[
+  {id:'250001', pw:'p250001w', nick:'テスト1'},
+  {id:'250002', pw:'p250002w', nick:'テスト2'}
+];
+
+function rowHtml(i, r){
+  return '<div class="trow" data-i="'+i+'">'
+    +'<div class="field"><label>会員ID</label><input class="mono r-id" value="'+esc(r.id||'')+'" placeholder="250001"></div>'
+    +'<div class="field"><label>パスワード</label><input class="mono r-pw" value="'+esc(r.pw||'')+'" placeholder="6文字以上"></div>'
+    +'<div class="field"><label>ニックネーム</label><input class="r-nick" value="'+esc(r.nick||'')+'" placeholder="テスト"></div>'
+    +'<button class="bd r-del" title="この行を削除">削除</button>'
+    +'</div>';
+}
+function renderRows(){
+  g('rows').innerHTML=_preset.map(function(r,i){return rowHtml(i,r);}).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.r-del'),function(btn){
+    btn.addEventListener('click',function(){
+      var i=parseInt(this.closest('.trow').getAttribute('data-i'),10);
+      _preset.splice(i,1); if(!_preset.length)_preset.push({id:'',pw:'',nick:''}); renderRows();
+    });
+  });
+}
+function readRows(){
+  return Array.prototype.map.call(document.querySelectorAll('#rows .trow'),function(row){
+    return {
+      id:(row.querySelector('.r-id').value||'').trim(),
+      pw:(row.querySelector('.r-pw').value||'').trim(),
+      nick:(row.querySelector('.r-nick').value||'').trim()
+    };
+  });
+}
+function logLine(cls, ic, html){
+  var d=document.createElement('div'); d.className='log-row '+cls;
+  d.innerHTML='<span class="ic">'+ic+'</span><span>'+html+'</span>';
+  g('log').appendChild(d);
+}
+
+async function createTestUser(u){
+  var id=u.id, pw=u.pw, nick=u.nick||('テスト'+id);
+  if(!/^[A-Za-z0-9_-]{1,20}$/.test(id)){ logLine('err','✕','<span class="mono">'+esc(id||'(空)')+'</span> IDが不正です（英数字1〜20文字）'); return; }
+  if((pw||'').length<6){ logLine('err','✕','<span class="mono">'+esc(id)+'</span> パスワードは6文字以上が必要です'); return; }
+  var ref=db.collection('members').doc(id);
+  var snap;
+  try{ snap=await ref.get(); }catch(e){ logLine('err','✕','<span class="mono">'+esc(id)+'</span> members読取失敗: '+esc(e.message||e)); return; }
+  if(snap.exists && snap.data().authUid){ logLine('skip','—','<span class="mono">'+esc(id)+'</span> は既に存在します（authUid有り）。スキップ'); return; }
+  // 1) membersドキュメント（未作成なら作成）
+  if(!snap.exists){
+    try{
+      await ref.set({
+        realId:id, displayId:id, memberId:id, email:null,
+        status:'active', role:'member', nickname:nick,
+        registeredAt:new Date().toISOString().slice(0,10),
+        visitCount:0, totalAmount:0, totalTequila:0,
+        isTest:true, createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(e){ logLine('err','✕','<span class="mono">'+esc(id)+'</span> members作成失敗: '+esc(e.message||e)); return; }
+  }
+  // 2) 認証アカウント作成（Cloud Function・オーナー限定）
+  try{
+    var res=await fbFunctions.httpsCallable('adminAuthOperation')({operation:'create', memberId:id, password:pw});
+    logLine('ok','✓','<span class="mono">'+esc(id)+'</span> 作成しました（ニックネーム: '+esc(nick)+' / pass: <span class="mono">'+esc(pw)+'</span>）uid=<span class="mono">'+esc((res&&res.data&&res.data.uid)||'')+'</span>');
+  }catch(e){
+    var m=(e&&e.message)||String(e);
+    logLine('err','✕','<span class="mono">'+esc(id)+'</span> 認証アカウント作成失敗: '+esc(m)+'（members側は作成済みの可能性あり）');
+  }
+}
+
+async function createAll(){
+  var btn=g('btn-create'); btn.disabled=true; var old=btn.textContent; btn.textContent='作成中...';
+  g('log').innerHTML='';
+  var rows=readRows().filter(function(r){return r.id||r.pw||r.nick;});
+  if(!rows.length){ logLine('err','✕','作成対象がありません'); btn.disabled=false; btn.textContent=old; return; }
+  for(var i=0;i<rows.length;i++){ await createTestUser(rows[i]); }
+  logLine('skip','ℹ','完了しました。会員ページ（/member.html）からID＋パスワードでログインを確認できます。');
+  btn.disabled=false; btn.textContent=old;
+}
+
+// ── 認証ゲート（オーナー限定） ──
+AuthRole.requireOwner(auth, function(){ g('app').style.display='block'; renderRows(); },
+  function(){ g('login-screen').style.display='flex'; });
+g('lbtn').addEventListener('click',function(){ auth.signInWithEmailAndPassword((g('lemail').value||'').trim(), g('lpass').value).catch(function(e){ g('lerr').textContent=e.message; }); });
+g('lpass').addEventListener('keydown',function(e){ if(e.key==='Enter') g('lbtn').click(); });
+g('btn-logout').addEventListener('click',function(){ auth.signOut().then(function(){ location.reload(); }); });
+g('btn-add').addEventListener('click',function(){ _preset.push({id:'',pw:'',nick:''}); renderRows(); });
+g('btn-create').addEventListener('click',createAll);
+</script>
+</body>
+</html>
