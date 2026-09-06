@@ -264,9 +264,9 @@ a{color:var(--gold-d)}
 .ck-ttl.done{text-decoration:line-through;color:var(--ink3)}
 .ck-vis{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;flex:0 0 auto}
 .ck-vis.pub{background:#e7f6f1;color:var(--teal)}.ck-vis.priv{background:var(--cream3);color:var(--ink3)}
-.ck-content{font-size:13px;color:var(--ink2);line-height:1.7;margin:6px 0;white-space:pre-wrap}
-.ck-dl{font-size:14px;color:var(--gold-d);font-weight:700}
-.ck-dl.over{color:var(--red)}
+.ck-content{font-size:14.5px;color:var(--ink);line-height:1.7;margin:6px 0;white-space:pre-wrap}
+.ck-dl-inline{font-weight:700;color:var(--gold-d)}
+.ck-dl-inline.over{color:var(--red)}
 .ck-divider{border-top:1px solid var(--border);margin:10px 0 4px}
 .ck-btn{margin-top:8px;padding:9px 16px;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer}
 .ck-btn.todo{background:var(--gold-d);color:var(--cream)}
@@ -1736,8 +1736,10 @@ function taskDetailHtml(t){
   var active=_taskActiveSelf(t);
   var hh='';
   if(!active) hh+='<div class="ck-graynote">👁 この項目の対象者ではありません（閲覧のみ）</div>';
-  if(t.content) hh+='<div class="ck-content">'+esc(t.content)+'</div>';
-  if(t.deadline) hh+='<div class="ck-dl'+(over?' over':'')+'">期限: '+esc(t.deadline)+(over?'（超過）':'')+'</div>';
+  if(t.content || t.deadline){
+    var dlIn=t.deadline?('<b class="ck-dl-inline'+(over?' over':'')+'">（期限: '+esc(t.deadline)+(over?' 超過':'')+'）</b>'):'';
+    hh+='<div class="ck-content">'+esc(t.content||'')+((t.content&&dlIn)?' ':'')+dlIn+'</div>';
+  }
   if(t.sampleUrl) hh+='<div class="ck-attach">📄 <a href="'+esc(t.sampleUrl)+'" target="_blank" rel="noopener">提出見本を見る ↗</a></div>';
   if(t.attachmentUrl) hh+='<div class="ck-attach">📎 <a href="'+esc(t.attachmentUrl)+'" target="_blank" rel="noopener">'+esc(t.attachmentName||'参考ファイル')+'</a></div>';
   if(_isReal && active){
