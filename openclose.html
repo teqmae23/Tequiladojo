@@ -364,7 +364,12 @@ function loadLayouts(){
     var cur=sel.value;
     sel.innerHTML='<option value="">選択してください</option>'+
       layouts.map(function(l){return '<option value="'+l.id+'">'+l.name+' (MAX'+l.seats+'席)</option>';}).join("");
-    if(cur) sel.value=cur;
+    if(cur){ sel.value=cur; }
+    else if(storeStatus!=="open" && storeStatus!=="break"){
+      // 開店前（閉店中）は既定レイアウトを初期選択して表示する
+      var def=layouts.find(function(l){ return l.isDefault; });
+      if(def){ sel.value=def.id; sel.dispatchEvent(new Event("change")); }
+    }
   }).catch(function(e){toast("レイアウト読込失敗: "+e.message,"err");});
 }
 
@@ -689,7 +694,8 @@ async function loadAttendance(){
       var timeStr=att&&att.checkInTime?(att.checkInTime.slice(0,2)+':'+att.checkInTime.slice(2,4)):'';
       // 未出勤のみ選択可（出勤中=チェック済/退勤済=未チェックで無効化。開店時に選択分を出勤にする）
       var disabled=(status!=='未出勤');
-      var checked=isIn;
+      // 出勤中はチェック済み。未出勤でも「開店時デフォルト出勤」設定のスタッフは初期チェック（変更可）。
+      var checked=isIn || (status==='未出勤' && m.defaultAttend===true);
       return '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);cursor:'+(disabled?'default':'pointer')+'">'
         +'<input type="checkbox" class="oc-staff-chk" data-mid="'+esc(mid)+'"'+(checked?' checked':'')+(disabled?' disabled':'')+'>'
         +'<span style="font-size:12px;font-weight:500;flex:1'+(disabled&&!isIn?';color:var(--ink3)':'')+'">'+esc(m.nickname||m.name||m.id)+'</span>'
