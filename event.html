@@ -302,6 +302,7 @@ a{color:var(--gold-d)}
 .ck-msg-lbl{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px}
 .ck-msg-range{font-size:11px;color:var(--ink3);font-weight:400;margin-left:4px}
 .ck-msg-in{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--cream);font-family:var(--sans);min-height:44px;resize:vertical;line-height:1.5}
+.ck-msg-in-fit{box-sizing:border-box;max-width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r);font-size:14px;background:var(--cream);font-family:var(--sans);line-height:1.5;letter-spacing:.02em}
 .ck-msg-done{font-size:12px;margin-top:8px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:7px 10px;white-space:pre-wrap;word-break:break-word;line-height:1.5}
 .bd-new{margin-bottom:12px}
 .bd-newbtn{padding:9px 16px;border:none;border-radius:20px;background:var(--gold-d);color:var(--cream);font-size:13px;font-weight:600;cursor:pointer}
@@ -1688,19 +1689,22 @@ function submittedFileHtml(t, myc){
 // 完了時メッセージ: 「タイトル：」の後に入力欄。桁数（文字数）指定に対応。
 function _msgRange(t){
   var mn=t.msgMin||0, mx=t.msgMax||0;
-  if(mn&&mx) return '（'+mn+'〜'+mx+'文字）';
-  if(mn) return '（'+mn+'文字以上）';
-  if(mx) return '（'+mx+'文字以内）';
+  if(mn&&mx) return (mn===mx)?('（'+mn+'桁）'):('（'+mn+'〜'+mx+'桁）');
+  if(mn) return '（'+mn+'桁以上）';
+  if(mx) return '（'+mx+'桁以内）';
   return '';
 }
 function messageFieldHtml(t, myc){
   if(!(t&&t.requireMessage)) return '';
   var v=(myc&&myc.message)||'';
   var range=_msgRange(t);
-  var maxAttr=t.msgMax?(' maxlength="'+t.msgMax+'"'):'';
   var lbl=(t.msgLabel||t.title||'');
-  return '<div class="ck-msg"><label class="ck-msg-lbl">'+esc(lbl)+'：'+(range?'<span class="ck-msg-range">'+range+'</span>':'')+'</label>'
-    +'<textarea class="ck-msg-in" id="ckm-'+esc(t.id)+'"'+maxAttr+' placeholder="メッセージを入力してください">'+esc(v)+'</textarea></div>';
+  var head='<div class="ck-msg"><label class="ck-msg-lbl">'+esc(lbl)+'：'+(range?'<span class="ck-msg-range">'+range+'</span>':'')+'</label>';
+  // 桁数（最大文字数）が指定されていれば、その桁数に合わせた1行入力欄。無指定は複数行。
+  if(t.msgMax){
+    return head+'<input type="text" class="ck-msg-in-fit" id="ckm-'+esc(t.id)+'" maxlength="'+t.msgMax+'" style="width:'+(t.msgMax+4)+'ch" placeholder="入力してください" value="'+esc(v)+'"></div>';
+  }
+  return head+'<textarea class="ck-msg-in" id="ckm-'+esc(t.id)+'" placeholder="メッセージを入力してください">'+esc(v)+'</textarea></div>';
 }
 function submittedMessageHtml(t, myc){
   if(!(t&&t.requireMessage)) return '';

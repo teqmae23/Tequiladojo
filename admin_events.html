@@ -561,10 +561,10 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
           <div class="fg"><label class="fl">入力欄のラベル（任意）</label><input class="fi" id="tk-msg-label" placeholder="未入力ならタイトルを使用（例: 参加人数、連絡事項）"></div>
           <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">参加者は「ラベル：」の後の入力欄にメッセージを入力してから完了できます。</div>
           <div class="row2">
-            <div class="fg"><label class="fl">最小文字数（任意）</label><input class="fi" id="tk-msg-min" type="number" min="0" placeholder="例: 1"></div>
-            <div class="fg"><label class="fl">最大文字数（任意）</label><input class="fi" id="tk-msg-max" type="number" min="0" placeholder="例: 200"></div>
+            <div class="fg"><label class="fl">最小桁数（任意）</label><input class="fi" id="tk-msg-min" type="number" min="0" placeholder="例: 6"></div>
+            <div class="fg"><label class="fl">最大桁数（任意）</label><input class="fi" id="tk-msg-max" type="number" min="0" placeholder="例: 6"></div>
           </div>
-          <div style="font-size:11px;color:var(--ink3)">桁数（文字数）を n〜m で指定できます。空欄は制限なし。</div>
+          <div style="font-size:11px;color:var(--ink3)">桁数（文字数）を指定できます。最小・最大が同じなら「x桁」、違えば「n〜m桁」と表示。最大を指定すると入力欄がその桁数幅になります。空欄は制限なし。</div>
         </div>
       </div>
       <div class="fg" style="margin-top:10px">
