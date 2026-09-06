@@ -1708,7 +1708,7 @@ function messageFieldHtml(t, myc){
   if(t.msgMax){
     return head+'<input type="text" class="ck-msg-in-fit" id="ckm-'+esc(t.id)+'" maxlength="'+t.msgMax+'" style="width:'+(t.msgMax+4)+'ch" value="'+esc(v)+'"></div>';
   }
-  return head+'<textarea class="ck-msg-in" id="ckm-'+esc(t.id)+'" placeholder="メッセージを入力してください">'+esc(v)+'</textarea></div>';
+  return head+'<textarea class="ck-msg-in" id="ckm-'+esc(t.id)+'">'+esc(v)+'</textarea></div>';
 }
 function submittedMessageHtml(t, myc){
   if(!(t&&t.requireMessage)) return '';
