@@ -382,11 +382,12 @@ document.getElementById('btn-logout').addEventListener('click',function(){ auth.
 // ── データ ───────────────────────────────────────────────────────────
 var rawDis=[], rawBrands=[], rawBottles=[], rawBdata=[], rawAmmBottle=[];
 var keepSourceSet={}; // キープ元となっている bottleData の id 集合
-// BD（ボトルデータ）の状態: keep=キープ / ended=提供終了 / stock=在庫
+// BD（ボトルデータ）の状態: keep=キープ / ended=提供終了 / serving=提供中 / stock=在庫
 function _bdataState(r){
   if(!r) return 'stock';
   if(keepSourceSet[String(r.id)] || String(r.lotNo||'').toUpperCase()==='KEEP') return 'keep';
   if(String(r.status||'')==='ended') return 'ended';
+  if(r.serveStart && !r.serveEnd) return 'serving'; // 提供開始済みで未終了＝提供中
   return 'stock';
 }
 var tree={};
@@ -635,11 +636,12 @@ function makeRow(lv, r, stateKey, hasChildren, nameColor){
   var badge=document.createElement('span');
   badge.className='level-badge';
   badge.textContent=lv.badge;
-  // BDアイコンは状態別に配色: 提供終了=灰色 / キープ=ピンク / 在庫=白背景黒字
+  // BDアイコンは状態別に配色: 提供終了=灰色 / キープ=ピンク / 提供中=オレンジ / 在庫=白背景黒字
   if(lv.key==='bdata'){
     var _st=_bdataState(r);
     if(_st==='keep'){ badge.style.background='#e48fb3'; badge.style.color='#fff'; badge.title='キープボトル'; }
     else if(_st==='ended'){ badge.style.background='#b0a99e'; badge.style.color='#fff'; badge.title='提供終了'; }
+    else if(_st==='serving'){ badge.style.background='#e8862e'; badge.style.color='#fff'; badge.title='提供中ボトル'; }
     else { badge.style.background='#fff'; badge.style.color='#000'; badge.style.border='1px solid #8a7f70'; badge.title='在庫ボトル'; }
   }
   infoDiv.appendChild(badge);
