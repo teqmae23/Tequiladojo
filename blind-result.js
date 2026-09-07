@@ -54,10 +54,10 @@ var BlindResult = (function(){
     + '</div>'
     + '<div id="result-body"></div>'
     + '<div class="result-action-bar" id="result-action-input">'
-    + '<button class="btn bp" id="btn-show-result" onclick="BlindResult.confirmAndReveal()" style="flex:1">🎭 結果を確定・公開</button>'
+    + '<button class="btn bp" id="btn-show-result" onclick="BlindResult.confirmAndReveal()" style="flex:1">🎭 入力終了・公開</button>'
     + '</div>'
     + '<div class="result-action-bar" id="result-action-revealed" style="display:none">'
-    + '<button class="btn bs" id="btn-back-to-input" onclick="BlindResult.backToInput()" style="flex:1">確定解除（非公開に戻す）</button>'
+    + '<button class="btn bs" id="btn-back-to-input" onclick="BlindResult.backToInput()" style="flex:1">入力終了解除（非公開に戻す）</button>'
     + '<button class="btn bp" id="btn-save-result" onclick="BlindResult.save()" style="flex:1">結果を保存する</button>'
     + '</div>'
     + '</div>'
@@ -230,6 +230,7 @@ var BlindResult = (function(){
       source: 'staff', updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if(confirmed === true){ data.confirmed = true; data.confirmedAt = firebase.firestore.FieldValue.serverTimestamp(); }
+    else if(confirmed === false){ data.confirmed = false; }
     _db.collection('blindGuesses').doc(data.id).set(data, {merge:true}).catch(function(){});
   }
 
@@ -243,11 +244,27 @@ var BlindResult = (function(){
   // 会員入力を許可した状態での全員表（スタッフ結果入力画面）か
   function _staffInputMode(){ return !!(_state && _state.inputOpen && !_state.lockedVisitKey); }
   // スタッフ参加者の入力を確定（自分の結果の確定ボタン）
+  // 確定後はマーク選択を編集不可にし、「確定を解除して修正」ボタンに切り替える。
   function confirmStaffInput(){
     if(!_state) return;
+    _state.confirmedByRow = _state.confirmedByRow || [];
     var n = 0;
-    _state.members.forEach(function(g, mi){ if(_isStaffRow(g)){ _persistRowGuess(mi, true); n++; } });
-    _showToast(n ? 'スタッフの入力を確定しました' : 'スタッフ参加者がいません', n ? 'success' : 'error');
+    _state.members.forEach(function(g, mi){ if(_isStaffRow(g)){ _persistRowGuess(mi, true); _state.confirmedByRow[mi] = true; n++; } });
+    if(!n){ _showToast('スタッフ参加者がいません', 'error'); return; }
+    _renderTable();
+    _renderGuessStatus();
+    _showToast('スタッフの入力を確定しました', 'success');
+  }
+  // スタッフ参加者の確定を解除して修正可能に戻す
+  function unconfirmStaffInput(){
+    if(!_state) return;
+    _state.confirmedByRow = _state.confirmedByRow || [];
+    var n = 0;
+    _state.members.forEach(function(g, mi){ if(_isStaffRow(g)){ _persistRowGuess(mi, false); _state.confirmedByRow[mi] = false; n++; } });
+    if(!n){ _showToast('スタッフ参加者がいません', 'error'); return; }
+    _renderTable();
+    _renderGuessStatus();
+    _showToast('確定を解除しました。修正できます', 'success');
   }
 
   // ── Public: answer/winner setters (called from inline onclick) ──
@@ -305,6 +322,8 @@ var BlindResult = (function(){
     var saveBtn = _g('btn-save-result');
     if(saveBtn){ saveBtn.style.display = (_canEdit && !locked) ? '' : 'none'; saveBtn.disabled = false; }
     _updateTitle();
+    // 公開状態に応じて会員入力状況パネルのボタン活性を更新（存在する場合のみ）
+    if(_g('bg-status')) _renderGuessStatus();
   }
 
   // ── Private: render table ──
@@ -350,11 +369,15 @@ var BlindResult = (function(){
       //  許可中: 会員行は入力不可・「?」／スタッフ行のみ編集（自分のマーク表示）
       //  締切後(一度許可済): 管理者は全行編集可・ただしマークは「?」で秘匿
       //  許可前(準備中): 全員編集・マーク表示
-      var editable;
-      if(lockedVk){ editable = (g.visitKey === lockedVk); }
-      else if(openNow){ editable = _isStaffRow(g); }
-      else { editable = true; } // 締切後(everOpened) / 準備中 は管理者が全行入力可
-      var isMyRow = editable;
+      var editable, isMyRow;
+      if(lockedVk){ editable = (g.visitKey === lockedVk); isMyRow = editable; }
+      else if(openNow){
+        // 会員入力許可中: スタッフ行のみ自分の行として表示。
+        // 「自分の入力を確定」後は編集不可（マークは表示のまま）。
+        isMyRow = _isStaffRow(g);
+        editable = isMyRow && !((s.confirmedByRow || [])[mi]);
+      }
+      else { editable = true; isMyRow = true; } // 締切後(everOpened) / 準備中 は管理者が全行入力可
       // 締切後(一度許可済)は、管理者が再入力したセル以外はマークを「?」で秘匿。
       // ただしスタッフ参加者の行は自分で入力した結果なので秘匿しない（マーク表示）。
       var rowHideBase = everOpened && !openNow && !isRevealed && !_isStaffRow(g);
@@ -376,7 +399,15 @@ var BlindResult = (function(){
             cellContent = '<span style="color:var(--ink3)">—</span>';
           }
         } else if(!isRevealed){
-          cellContent = _buildPicker(mi, mki, chosen, hideMark);
+          if(editable){
+            cellContent = _buildPicker(mi, mki, chosen, hideMark);
+          } else if(chosen){
+            // 確定済みの自分（スタッフ）行: マーク表示のみ（編集不可）
+            var msC = _markSym(blindMarks.find(function(x){ return x.id === chosen; }) || {id: chosen});
+            cellContent = '<span style="color:' + msC.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + msC.sym + '</span>';
+          } else {
+            cellContent = '<span style="color:var(--ink3)">—</span>';
+          }
         } else if(!colAllFilled[mki]){
           if(chosen){
             var ms3 = _markSym(blindMarks.find(function(x){ return x.id === chosen; }) || {id: chosen});
@@ -417,8 +448,14 @@ var BlindResult = (function(){
       } else if(isRevealed && w){
         var msw2 = _markSym(blindMarks.find(function(x){ return x.id === w; }) || {id: w});
         winnerCell = '<span style="color:' + msw2.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + msw2.sym + '</span>';
-      } else {
+      } else if(editable){
         winnerCell = _buildWinnerPicker(mi, w, winHideMark);
+      } else if(w){
+        // 確定済みの自分（スタッフ）行: [好]マーク表示のみ（編集不可）
+        var mswC = _markSym(blindMarks.find(function(x){ return x.id === w; }) || {id: w});
+        winnerCell = '<span style="color:' + mswC.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + mswC.sym + '</span>';
+      } else {
+        winnerCell = '<span style="color:var(--ink3)">—</span>';
       }
 
       var scoreCell = '—';
@@ -622,6 +659,8 @@ var BlindResult = (function(){
     _g('result-action-input').style.display = 'flex';
     _g('result-action-revealed').style.display = 'none';
     _g('result-modal-title').textContent = '🎭 ブラインド結果入力';
+    // 非公開に戻したので会員入力状況パネルのボタンを再度活性化
+    if(_g('bg-status')) _renderGuessStatus();
   }
 
   // ── Public: close modal ──
@@ -749,6 +788,7 @@ var BlindResult = (function(){
 
   // ユーザー(会員)入力の許可/締切をブロードキャスト。許可するまで会員側に入力ボタンは出ない。
   function setInputOpen(open){
+    if(_state && _state.revealed){ _showToast('公開中は変更できません。先に「入力終了解除」してください', 'error'); return; }
     var bid = _batchId(); if(!bid || !_db) return;
     var data = { batchId: bid, inputOpen: !!open, inputOpenAt: firebase.firestore.FieldValue.serverTimestamp() };
     if(open) data.inputOpenedOnce = true; // 一度許可したら締切後もマークを秘匿するためのフラグ
@@ -777,20 +817,31 @@ var BlindResult = (function(){
       var nm = _vLabel(g.visitKey);
       return '<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0;padding:2px 8px;border-radius:12px;background:'+(confirmed?'#d7ecdd':'#eee')+';color:'+(confirmed?'#1a6640':'#888')+'">'
         + (confirmed?'✅':'…') + ' ' + _esc(nm)
-        + (confirmed?' <b data-unlock="'+_esc(customerId)+'" style="cursor:pointer;color:#a33">解除</b>':'')
+        + ((confirmed && !_state.revealed)?' <b data-unlock="'+_esc(customerId)+'" style="cursor:pointer;color:#a33">解除</b>':'')
         + '</span>';
     }).join('');
     var inputOpen = !!_state.inputOpen;
     var everOpened = !!_state.inputEverOpened;
+    // 「入力終了・公開」済み（確定・公開中）は、入力操作系ボタンをロックする
+    var published = !!_state.revealed;
+    var lockAttr = published ? ' disabled style="opacity:.45;cursor:not-allowed;' : ' style="';
     var hasStaffRow = _state.members.some(function(g){ return _isStaffRow(g); });
-    // 会員入力を許可した後は、スタッフ参加者が自分の入力を確定するボタンを画面下に1つ表示
-    var staffConfirmBtn = ((inputOpen || everOpened) && hasStaffRow)
-      ? '<button class="btn bp sm" onclick="BlindResult.confirmStaffInput()" style="width:100%;margin-top:6px">✅ 自分（スタッフ）の入力を確定する</button>'
-      : '';
+    // スタッフ行が全て確定済みか（確定ボタン ⇔ 確定解除ボタンの切替判定）
+    var staffConfirmedAll = hasStaffRow && _state.members.every(function(g, mi){
+      return !_isStaffRow(g) || (_state.confirmedByRow || [])[mi];
+    });
+    // 会員入力を許可した後は、スタッフ参加者が自分の入力を確定するボタンを画面下に1つ表示。
+    // 確定後は「確定を解除して修正」ボタンに切替。公開（確定）後は非表示。
+    var staffConfirmBtn = '';
+    if(!published && (inputOpen || everOpened) && hasStaffRow){
+      staffConfirmBtn = staffConfirmedAll
+        ? '<button class="btn bs sm" onclick="BlindResult.unconfirmStaffInput()" style="width:100%;margin-top:6px">🔓 確定を解除して修正</button>'
+        : '<button class="btn bp sm" onclick="BlindResult.confirmStaffInput()" style="width:100%;margin-top:6px">✅ 自分（スタッフ）の入力を確定する</button>';
+    }
     panel.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px"><b>会員入力状況</b>'
-      + '<button class="btn '+(inputOpen?'bs':'bp')+' sm" onclick="BlindResult.setInputOpen('+(inputOpen?'false':'true')+')" style="margin-left:auto">'+(inputOpen?'🔴 入力を締切':'🟢 ユーザー入力を許可')+'</button>'
-      + '<button class="btn bs sm" onclick="BlindResult.unlockAll()">全員の確定解除</button></div>'
+      + '<button class="btn '+(inputOpen?'bs':'bp')+' sm" onclick="BlindResult.setInputOpen('+(inputOpen?'false':'true')+')"'+lockAttr+'margin-left:auto">'+(inputOpen?'🔴 入力を締切':'🟢 ユーザー入力を許可')+'</button>'
+      + '<button class="btn bs sm" onclick="BlindResult.unlockAll()"'+lockAttr+'">全員の確定解除</button></div>'
       + (inputOpen
           ? '<div style="color:#1a6640;font-size:11px;margin-bottom:4px">※ 会員参加者は各自のマイページで入力中です（この画面では「?」・入力不可）。スタッフ参加者はこの画面で入力し、下のボタンで確定してください。</div>'
           : (everOpened
@@ -831,6 +882,7 @@ var BlindResult = (function(){
     }).then(function(){ _showToast('確定を解除しました', 'success'); }).catch(function(e){ _showToast('解除失敗: '+e.message,'error'); });
   }
   async function unlockAll(){
+    if(_state && _state.revealed){ _showToast('公開中は変更できません。先に「入力終了解除」してください', 'error'); return; }
     var bid = _batchId(); if(!bid) return;
     try{
       var snap = await _db.collection('blindGuesses').where('batchId','==',bid).get();
@@ -850,6 +902,7 @@ var BlindResult = (function(){
     stopGuessWatch: stopGuessWatch,
     setInputOpen: setInputOpen,
     confirmStaffInput: confirmStaffInput,
+    unconfirmStaffInput: unconfirmStaffInput,
     reveal: reveal,
     unlock: unlock,
     unlockAll: unlockAll,
