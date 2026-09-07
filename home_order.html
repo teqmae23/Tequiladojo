@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=DM+Mono&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="/auth-role.js?v=20260907"></script>
+<script src="/auth-role.js?v=20260907b"></script>
 <script src="/bottle-weight.js?v=20260724"></script>
 <script>window.JOURNAL_PAGE='home_order';</script>
 <script src="/journal.js?v=20260706"></script>
@@ -1151,7 +1151,7 @@ function buildBatchCard(b,mode){
   const showCb=mode==='pending'||mode==='blind-pending';
   const showResult=mode==='blind-pending';
   const isCancelled=b.served===0;
-  const time=b.orderTime?AuthRole.formatBusinessTime(b.orderTime)||b.orderTime.slice(0,2)+':'+b.orderTime.slice(2):'';
+  const time=b.orderTime?AuthRole.formatBusinessTime24(b.orderTime)||b.orderTime.slice(0,2)+':'+b.orderTime.slice(2):'';
   const bb=b.isBlind?'<span class="blind-badge">🎭 BLIND</span>':'';
   const cancelBadge=isCancelled?'<span style="font-size:10px;background:var(--red-l);color:var(--red);padding:1px 6px;border-radius:3px;font-weight:700">キャンセル</span>':'';
   const nameArr=b.groups.map(g=>esc(vLabel(g.visitKey)));

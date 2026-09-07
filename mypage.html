@@ -415,10 +415,14 @@ function fmtDateFull(yymmdd){
 }
 function fmtTime(hhmm){
   if(!hhmm)return '';
-  if(typeof AuthRole!=='undefined'&&AuthRole.formatBusinessTime){
-    return AuthRole.formatBusinessTime(hhmm)||hhmm.slice(0,2)+':'+hhmm.slice(2,4);
-  }
-  return hhmm.slice(0,2)+':'+hhmm.slice(2,4);
+  var s=String(hhmm);
+  if(s.length<4)return s;
+  // 営業日基準・日跨ぎは24:xx/25:xx表記（深夜0〜5時台は+24時間）
+  var h=parseInt(s.slice(0,2),10);
+  var mm=s.slice(2,4);
+  if(isNaN(h))return s.slice(0,2)+':'+mm;
+  if(h<6)h+=24;
+  return String(h).padStart(2,'0')+':'+mm;
 }
 function fmtAmt(n){return n!=null?'¥'+Number(n).toLocaleString():'—';}
 function calcOrderAmt(o){

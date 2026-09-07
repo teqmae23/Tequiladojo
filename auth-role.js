@@ -177,6 +177,19 @@ var AuthRole = (function() {
     return t.slice(0,2)+':'+t.slice(2,4);
   }
 
+  // HHMMSS → HH:MM 表示（営業日基準・日跨ぎは24:xx/25:xx表記）
+  // 深夜(0〜5時台)は+24時間して 24:22 / 25:18 のように表示する。
+  // 既に24以降で保存された値(例 "2422")はそのまま。
+  function formatBusinessTime24(t){
+    t = String(t || '');
+    if(t.length < 4) return t || '';
+    var h = parseInt(t.slice(0,2),10);
+    var mm = t.slice(2,4);
+    if(isNaN(h)) return t.slice(0,2)+':'+mm;
+    if(h < 6) h += 24;
+    return String(h).padStart(2,'0')+':'+mm;
+  }
+
   // 営業日ソート用: HHMM(SS)文字列を分数値へ変換する。
   // 営業時間は日跨ぎするため、深夜(0〜5時台)は翌日扱いで+24時間する。
   // 空文字は末尾へ回すよう大きな値を返す。
@@ -281,6 +294,7 @@ var AuthRole = (function() {
   return { requireStaff: requireStaff, requireOwner: requireOwner, requireMember: requireMember,
            getActiveSession: getActiveSession, businessDate: businessDate,
            nowBusinessTime: nowBusinessTime, formatBusinessTime: formatBusinessTime,
+           formatBusinessTime24: formatBusinessTime24,
            businessSortValue: businessSortValue,
            isVisitInSession: isVisitInSession, bdName: bdName,
            getSessionByDate: getSessionByDate, getSessionVisits: getSessionVisits,
