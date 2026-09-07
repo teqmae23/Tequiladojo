@@ -1260,6 +1260,7 @@ function renderSchedItem(it){
   var hideLoc=_locHidden(it); // ストーカー対策: 滞在中は位置を伏せる
   var meta=[];
   var ct=costText(it); if(ct) meta.push('<span class="sc-cost">'+esc(ct)+'</span>');
+  if(it.linkUrl && /^https?:\/\//i.test(it.linkUrl)) meta.push('<a class="sc-map" href="'+esc(it.linkUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔗 参考URL</a>');
   if(hideLoc){
     meta.push('<span class="sc-loclock">'+(_isLodging(it)?'🏨 ホテル情報はチェックアウト後に公開されます':'📍 位置情報は滞在終了後に公開されます')+'</span>');
   } else {
