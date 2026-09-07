@@ -626,6 +626,7 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
       </div>
       <div class="fg"><label class="fl">イベント（タイトル） <span style="color:var(--red)">*</span></label><input class="fi" id="se-title" placeholder="例: SF Tequila Shop訪問"></div>
       <div class="fg"><label class="fl">備考</label><textarea class="fi" id="se-note" style="min-height:56px"></textarea></div>
+      <div class="fg"><label class="fl">リンクURL（任意）</label><input class="fi" id="se-link" placeholder="https://... （予約サイト・詳細ページ等）"></div>
       <div class="fg"><label class="fl">登録済みの場所から選択</label><select class="fi" id="se-place-pick" onchange="applyPlace(this.value,'se-place','se-lat','se-lng','se-map')"><option value="">（新規入力）</option></select></div>
       <div class="fg"><label class="fl">Google Map URL（場所）</label><input class="fi" id="se-map" placeholder="https://www.google.com/maps/... （@緯度,経度を含むURL）" oninput="onMapUrl('se-map','se-lat','se-lng','se-place')"></div>
       <div class="row2">
@@ -1922,6 +1923,7 @@ function openSchedEd(id, presetDate){
   fillPlacePickers();
   g('se-title').value=it?(it.title||''):'';
   g('se-note').value=it?(it.note||''):'';
+  g('se-link').value=it?(it.linkUrl||''):'';
   g('se-map').value=it?(it.mapUrl||''):'';
   g('se-lat').value=(it&&it.lat!=null)?it.lat:'';
   g('se-lng').value=(it&&it.lng!=null)?it.lng:'';
@@ -1958,7 +1960,7 @@ function saveSched(){
   var data={
     date:date, time:g('se-time').value||'', endTime:g('se-endtime').value||'', category:g('se-cat').value||'other',
     cost:costRaw, costCurrency:(costAmt!=null?costCur:''), costAmount:(costAmt!=null?costAmt:null), costJpy:(costAmt!=null?toYen(costAmt,costCur):null),
-    title:title, note:(g('se-note').value||'').trim(),
+    title:title, note:(g('se-note').value||'').trim(), linkUrl:(g('se-link').value||'').trim(),
     mapUrl:(g('se-map').value||'').trim(), lat:numOrNull(g('se-lat').value), lng:numOrNull(g('se-lng').value),
     placeName:(g('se-place').value||'').trim(),
     isMove:!!g('se-move').checked, toTime:g('se-totime').value||'', toMapUrl:(g('se-tomap').value||'').trim(), toLat:numOrNull(g('se-tolat').value), toLng:numOrNull(g('se-tolng').value),
