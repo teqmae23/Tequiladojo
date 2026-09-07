@@ -177,6 +177,20 @@ var AuthRole = (function() {
     return t.slice(0,2)+':'+t.slice(2,4);
   }
 
+  // 営業日ソート用: HHMM(SS)文字列を分数値へ変換する。
+  // 営業時間は日跨ぎするため、深夜(0〜5時台)は翌日扱いで+24時間する。
+  // 空文字は末尾へ回すよう大きな値を返す。
+  // 例: "2321"→1401, "0022"→1462, "0118"→1518, "2422"(自動+24表記)→1462。
+  function businessSortValue(t){
+    t=String(t||'');
+    if(t.length<2) return 999999;
+    var h=parseInt(t.slice(0,2),10);
+    if(isNaN(h)) return 999999;
+    var m=parseInt(t.slice(2,4),10)||0;
+    if(h<6) h+=24;
+    return h*60+m;
+  }
+
   // masterMeta: Rev.+最終更新日時をアトミックにインクリメント
   async function bumpMeta(db, name){
     var ref=db.collection('masterMeta').doc(name);
@@ -267,6 +281,7 @@ var AuthRole = (function() {
   return { requireStaff: requireStaff, requireOwner: requireOwner, requireMember: requireMember,
            getActiveSession: getActiveSession, businessDate: businessDate,
            nowBusinessTime: nowBusinessTime, formatBusinessTime: formatBusinessTime,
+           businessSortValue: businessSortValue,
            isVisitInSession: isVisitInSession, bdName: bdName,
            getSessionByDate: getSessionByDate, getSessionVisits: getSessionVisits,
            bumpMeta: bumpMeta, getMeta: getMeta };
