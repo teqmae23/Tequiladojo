@@ -169,6 +169,8 @@ a{color:var(--gold-d)}
 .sc-idl::before,.sc-idl::after{content:"";flex:1;border-top:1px dashed #d79a86}
 .sc-ic{font-size:16px;flex:0 0 auto}
 .sc-body{flex:1;min-width:0}
+.sc-rowthumb{margin-left:auto;flex:0 0 auto;align-self:center;height:52px;border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:pointer;display:flex}
+.sc-rowthumb img{height:100%;width:auto;max-width:110px;object-fit:cover;display:block}
 .sc-ttl{font-size:14px;font-weight:600;color:var(--ink)}
 .sc-note{font-size:12px;color:var(--ink);line-height:1.6;margin-top:2px;white-space:pre-wrap}
 .sc-arrow{display:block;color:var(--gold-d);font-size:12px;line-height:1.1;text-align:center}
@@ -1272,7 +1274,7 @@ function renderSchedItem(it){
   var photos=_photosByItem[it.id]||[];              // 参加者が投稿した写真
   var gallery=photos.length?('<div class="sc-gallery">'+photos.map(function(p,idx){ return '<img class="sc-thumb" src="'+esc(p.thumbUrl||p.url)+'" alt="" loading="lazy" onclick="event.stopPropagation();openLb(\''+did+'\','+idx+')">'; }).join('')+'</div>'):'';
   // 添付写真: 1枚目は一覧にサムネイル、2枚目以降は詳細に表示（いずれもクリックで拡大）
-  var firstThumb=aphotos.length?('<div class="sc-gallery sc-firstthumb"><img class="sc-thumb" src="'+esc(aphotos[0].url)+'" alt="" loading="lazy" onclick="event.stopPropagation();openItemPhotos(\''+did+'\',0)"></div>'):'';
+  var firstThumb=aphotos.length?('<div class="sc-rowthumb" onclick="event.stopPropagation();openItemPhotos(\''+did+'\',0)"><img src="'+esc(aphotos[0].url)+'" alt="" loading="lazy"></div>'):'';
   var moreThumbs=aphotos.length>1?('<div class="sc-gallery">'+aphotos.slice(1).map(function(p,idx){ return '<img class="sc-thumb" src="'+esc(p.url)+'" alt="" loading="lazy" onclick="event.stopPropagation();openItemPhotos(\''+did+'\','+(idx+1)+')">'; }).join('')+'</div>'):'';
   var inner=(it.note?'<div class="sc-note">'+esc(it.note)+'</div>':'')+(meta.length?'<div class="sc-meta">'+meta.join('')+'</div>':'')+schedRoomingHtml(it)+moreThumbs+gallery;
   var hasDetail=!!inner;
@@ -1280,9 +1282,10 @@ function renderSchedItem(it){
   var clickable=hasDetail||geo;
   return '<div class="sc-item'+(clickable?' has-geo':'')+'" style="background:'+catBg(it.category)+'"'+(clickable?' onclick="onSchedItemClick(\''+did+'\','+(geo?'1':'0')+')"':'')+'>'+schedTimeHtml(it)+'<span class="sc-ic">'+ic+'</span>'
     +'<div class="sc-body"><div class="sc-ttl">'+(it.overnight?'(泊) ':'')+esc(it.title||'')+schedNamesHtml(it,true)+rosterBtnHtml(it)+(hasDetail?'<span class="sc-caret2" id="scc-'+did+'">▾</span>':'')+'</div>'
-    +firstThumb
     +detail
-    +'</div></div>';
+    +'</div>'
+    +firstThumb
+    +'</div>';
 }
 // イベント行クリックで詳細を開閉（俯瞰マップは廃止したため地図フォーカスは行わない。
 // 各項目の位置は詳細内の「📍 地図」リンクから確認できる）
