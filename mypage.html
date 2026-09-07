@@ -1231,7 +1231,7 @@ function openBlindModal(gid, visitId){
   }
 
   if(!results.length){
-    body.innerHTML=`<div class="empty" style="padding:30px 0"><div class="empty-icon">🎭</div>結果未入力</div>`;
+    body.innerHTML=`<div class="empty" style="padding:30px 0;text-align:center"><div class="empty-icon">🎭</div><div style="font-weight:700">結果未確定</div><div style="font-size:12px;color:#8a7a60;margin-top:4px">結果確定までお待ちください</div></div>`;
     document.getElementById('blind-modal').classList.add('open');
     return;
   }
@@ -1539,7 +1539,8 @@ function renderBiTable(){
     action='<div style="margin-top:12px"><div style="font-size:12px;color:#1a6640;font-weight:700;margin-bottom:6px">✅ あなたの回答は確定済みです</div>'
       +'<button onclick="biUnconfirm()" style="width:100%;padding:10px;border:1px solid #ccc;background:#f5f5f5;border-radius:8px;font-size:14px;cursor:pointer">確定を解除して修正</button></div>';
   }else{
-    action='<div style="margin-top:12px"><div style="font-size:12px;color:#666;margin-bottom:6px">各グラス（①〜）がどのお酒か選んでください。選択は自動で共有・保存されます。</div>'
+    var _gN=_biNums[marks.length-1]||('①〜'+marks.length);
+    action='<div style="margin-top:12px"><div style="font-size:12px;color:#666;margin-bottom:6px;line-height:1.7">上記のお酒（①〜'+_gN+'）がどのグラスか選んで、グラスのマークを入力して下さい。また一番美味しかったグラスのマークも[好]欄に入力して下さい。</div>'
       +'<button onclick="biConfirm()" style="width:100%;padding:11px;border:none;background:#0c447c;color:#fff;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">確定する</button></div>';
   }
   var title=document.getElementById('bi-title'); if(title) title.textContent=revealed?'🎭 ブラインド結果（公開中）':'🎭 ブラインド結果入力';

@@ -1086,6 +1086,30 @@ function renderBatchSec(containerId,batches,mode){
   if(!el)return;
   if(!batches.length){el.innerHTML='<div class="empty">なし</div>';return;}
   el.innerHTML=batches.map(b=>buildBatchCard(b,mode)).join('');
+  // 結果未入力のブラインドバッチについて、入力許可(inputOpen)の現状をボタンへ反映
+  if(mode==='blind-pending'){ loadBlindInputStates(batches.filter(b=>b.isBlind).map(b=>b.bid)); }
+}
+// ── ブラインド: ユーザー入力の許可/締切トグル（結果入力の横） ──
+var blindInputOpenMap={};
+function _bioLabel(open){ return open?'🔴 入力を締切':'🟢 ユーザー入力を許可'; }
+function blindToggleBtnHtml(bid){
+  var open=!!blindInputOpenMap[bid];
+  return '<button class="btn '+(open?'bs':'bp')+' sm" id="bio-'+esc(bid)+'" onclick="event.stopPropagation();toggleBlindInput(\''+esc(bid)+'\',this)">'+_bioLabel(open)+'</button>';
+}
+function loadBlindInputStates(bids){
+  (bids||[]).forEach(function(bid){
+    db.collection('blindFlights').doc(bid).get().then(function(d){
+      var open=!!(d.exists && d.data().inputOpen); blindInputOpenMap[bid]=open;
+      var btn=document.getElementById('bio-'+bid); if(btn){ btn.className='btn '+(open?'bs':'bp')+' sm'; btn.innerHTML=_bioLabel(open); }
+    }).catch(function(){});
+  });
+}
+function toggleBlindInput(bid,btn){
+  var next=!blindInputOpenMap[bid];
+  if(btn) btn.disabled=true;
+  db.collection('blindFlights').doc(bid).set({batchId:bid, inputOpen:next, inputOpenAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})
+    .then(function(){ blindInputOpenMap[bid]=next; if(btn){ btn.disabled=false; btn.className='btn '+(next?'bs':'bp')+' sm'; btn.innerHTML=_bioLabel(next); } showToast(next?'ユーザー入力を許可しました':'入力を締め切りました','success'); })
+    .catch(function(e){ if(btn) btn.disabled=false; showToast('失敗: '+((e&&e.message)||e),'error'); });
 }
 
 function buildItemRowsHtml(orders,showActions){
@@ -1189,7 +1213,7 @@ function buildBatchCard(b,mode){
     </div>
     <div class="batch-body">${memberRows}</div>
     ${showResult||showCb?`<div class="batch-actions">
-      ${showResult?`<button class="btn bpu sm" onclick="openResultModal('${esc(b.bid)}')">結果入力</button>`:''}
+      ${showResult?`<button class="btn bpu sm" onclick="openResultModal('${esc(b.bid)}')">結果入力</button>${b.isBlind?blindToggleBtnHtml(b.bid):''}`:''}
       <div style="flex:1"></div>
     </div>`:''}
   </div>`;
