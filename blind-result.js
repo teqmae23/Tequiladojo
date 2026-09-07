@@ -371,8 +371,9 @@ var BlindResult = (function(){
       else if(openNow){ editable = _isStaffRow(g); }
       else { editable = true; } // 締切後(everOpened) / 準備中 は管理者が全行入力可
       var isMyRow = editable;
-      // 締切後(一度許可済)は、管理者が再入力したセル以外はマークを「?」で秘匿
-      var rowHideBase = everOpened && !openNow && !isRevealed;
+      // 締切後(一度許可済)は、管理者が再入力したセル以外はマークを「?」で秘匿。
+      // ただしスタッフ参加者の行は自分で入力した結果なので秘匿しない（マーク表示）。
+      var rowHideBase = everOpened && !openNow && !isRevealed && !_isStaffRow(g);
       var cells = marks.map(function(m, mki){
         var chosen = answers[mi][mki];
         var cellClass = 'mark-cell';
