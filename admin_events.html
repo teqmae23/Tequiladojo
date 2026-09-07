@@ -627,6 +627,14 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
       <div class="fg"><label class="fl">イベント（タイトル） <span style="color:var(--red)">*</span></label><input class="fi" id="se-title" placeholder="例: SF Tequila Shop訪問"></div>
       <div class="fg"><label class="fl">備考</label><textarea class="fi" id="se-note" style="min-height:56px"></textarea></div>
       <div class="fg"><label class="fl">リンクURL（任意）</label><input class="fi" id="se-link" placeholder="https://... （予約サイト・詳細ページ等）"></div>
+      <div class="fg"><label class="fl">写真（最大10枚 / 1枚目は一覧にサムネイル表示）</label>
+        <div id="se-photos" class="rm-thumbs"></div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="rm-photobtn" title="写真を選択" onclick="seItemPhotoPick()">📷 写真</button>
+          <button type="button" class="rm-photobtn" title="クリップボードから貼り付け" onclick="seItemPhotoPaste()">📋 ペースト</button>
+        </div>
+        <input type="file" id="se-photo-input" accept="image/*" style="display:none" onchange="seItemPhotoUpload(this)">
+      </div>
       <div class="fg"><label class="fl">登録済みの場所から選択</label><select class="fi" id="se-place-pick" onchange="applyPlace(this.value,'se-place','se-lat','se-lng','se-map')"><option value="">（新規入力）</option></select></div>
       <div class="fg"><label class="fl">Google Map URL（場所）</label><input class="fi" id="se-map" placeholder="https://www.google.com/maps/... （@緯度,経度を含むURL）" oninput="onMapUrl('se-map','se-lat','se-lng','se-place')"></div>
       <div class="row2">
@@ -1755,6 +1763,41 @@ function compressImage(file, maxDim, quality){
 }
 // ri>=0: 部屋、ri<0: 建物 の写真ホルダー
 function _photoHolder(bi,ri){ return (ri>=0)?_room(bi,ri):_buildings[bi]; }
+// ── スケジュール項目の写真（最大10枚・1枚目は一覧サムネイル） ──
+var _seItemPhotos=[];
+function renderSeItemPhotos(){
+  var box=g('se-photos'); if(!box) return;
+  box.innerHTML=_seItemPhotos.map(function(p,k){ return '<div class="rm-thumb"><img src="'+esc(p.url)+'" alt=""><button type="button" class="rm-thx" onclick="seItemPhotoDel('+k+')">×</button></div>'; }).join('');
+}
+function seItemPhotoPick(){ if(_seItemPhotos.length>=10){ toast('写真は最大10枚までです','err'); return; } var inp=g('se-photo-input'); if(inp){ inp.value=''; inp.click(); } }
+function seItemPhotoUpload(inp){ _seUploadItemPhoto((inp.files&&inp.files[0])||null); }
+function _seUploadItemPhoto(f){
+  if(!f) return;
+  if(_seItemPhotos.length>=10){ toast('写真は最大10枚までです','err'); return; }
+  if(!storage){ toast('この環境では画像アップロードを利用できません','err'); return; }
+  if(!/^image\//.test(f.type||'')){ toast('画像ファイルを指定してください','err'); return; }
+  if(f.size>30*1024*1024){ toast('画像は30MB以内にしてください','err'); return; }
+  var path='event_docs/'+_schEventId+'/itemphoto_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
+  toast('アップロード中…');
+  var ref=storage.ref(path);
+  compressImage(f,1600,0.72).catch(function(){ return f; }).then(function(blob){ return ref.put(blob,{contentType:'image/jpeg'}); })
+    .then(function(){ return ref.getDownloadURL(); })
+    .then(function(url){ _seItemPhotos.push({url:url,path:path,name:(f.name||'photo.jpg')}); renderSeItemPhotos(); toast('写真を追加しました'); })
+    .catch(function(e){ toast('アップロード失敗: '+e.message,'err'); });
+}
+function seItemPhotoPaste(){
+  if(_seItemPhotos.length>=10){ toast('写真は最大10枚までです','err'); return; }
+  if(!(navigator.clipboard&&navigator.clipboard.read)){ toast('この端末はボタン貼り付けに未対応です。画像をコピーして Ctrl+V を試してください','err'); return; }
+  navigator.clipboard.read().then(function(items){
+    for(var i=0;i<items.length;i++){
+      var types=items[i].types||[], t=null;
+      for(var j=0;j<types.length;j++){ if(types[j].indexOf('image')===0){ t=types[j]; break; } }
+      if(t){ items[i].getType(t).then(function(blob){ _seUploadItemPhoto(blob); }); return; }
+    }
+    toast('クリップボードに画像がありません。画像をコピーしてから押してください','err');
+  }).catch(function(){ toast('貼り付けできませんでした（ブラウザで許可が必要な場合があります）','err'); });
+}
+function seItemPhotoDel(k){ var p=_seItemPhotos[k]; if(!p) return; _seItemPhotos.splice(k,1); if(p.path&&storage) storage.ref(p.path).delete().catch(function(){}); renderSeItemPhotos(); }
 function roomPhotoPick(bi,ri){ _photoBi=bi; _photoRi=ri; var inp=g('rm-photo-input'); if(inp){ inp.value=''; inp.click(); } }
 // クリップボードから画像を貼り付け（ボタン用・タッチ端末対応）
 function roomPhotoPaste(bi,ri){
@@ -1941,6 +1984,8 @@ function openSchedEd(id, presetDate){
   g('se-title').value=it?(it.title||''):'';
   g('se-note').value=it?(it.note||''):'';
   g('se-link').value=it?(it.linkUrl||''):'';
+  _seItemPhotos=(it&&Array.isArray(it.photos))?it.photos.map(function(p){ return {url:p.url||'',path:p.path||'',name:p.name||''}; }):[];
+  renderSeItemPhotos();
   g('se-map').value=it?(it.mapUrl||''):'';
   g('se-lat').value=(it&&it.lat!=null)?it.lat:'';
   g('se-lng').value=(it&&it.lng!=null)?it.lng:'';
@@ -1978,6 +2023,7 @@ function saveSched(){
     date:date, time:g('se-time').value||'', endTime:g('se-endtime').value||'', category:g('se-cat').value||'other',
     cost:costRaw, costCurrency:(costAmt!=null?costCur:''), costAmount:(costAmt!=null?costAmt:null), costJpy:(costAmt!=null?toYen(costAmt,costCur):null),
     title:title, note:(g('se-note').value||'').trim(), linkUrl:(g('se-link').value||'').trim(),
+    photos:_seItemPhotos.map(function(p){ return {url:p.url,path:p.path||'',name:p.name||''}; }),
     mapUrl:(g('se-map').value||'').trim(), lat:numOrNull(g('se-lat').value), lng:numOrNull(g('se-lng').value),
     placeName:(g('se-place').value||'').trim(),
     isMove:!!g('se-move').checked, toTime:g('se-totime').value||'', toMapUrl:(g('se-tomap').value||'').trim(), toLat:numOrNull(g('se-tolat').value), toLng:numOrNull(g('se-tolng').value),
