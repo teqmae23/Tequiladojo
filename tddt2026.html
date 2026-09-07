@@ -1157,7 +1157,13 @@ function schedNamesHtml(it, inline){
 /* ── 合流/離脱にそった「現在参加しているメンバー」の管理 ── */
 // ラベルに「合流」を含めば加入、「離脱」を含めば離脱として扱う（既存の自由ラベルを利用）。
 var _rosterMap={};
-function _rosterOp(it){ if(!it||!it.showNames) return ''; var l=it.nameLabel||''; if(l.indexOf('離脱')>=0) return 'leave'; if(l.indexOf('合流')>=0) return 'join'; return ''; }
+function _rosterOp(it){
+  // 参加者が指定されていなければ増減なし
+  if(!it||!it.showNames||!(Array.isArray(it.nameParticipants)&&it.nameParticipants.length)) return '';
+  var l=it.nameLabel||'';
+  if(l.indexOf('離脱')>=0 || l.indexOf('解散')>=0) return 'leave'; // 離脱/解散＝除外
+  return 'join'; // 合流/集合/参加など、その時点で名前が指定されていれば「参加」＝加入扱い
+}
 // nameParticipants の tid（authUid または memberId）から名簿(_participants)の該当者を探す。
 function _findByTid(tid){
   tid=String(tid==null?'':tid);
