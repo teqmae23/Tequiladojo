@@ -703,6 +703,19 @@ function _ptDone(snap){
     return true;
   }).map(function(p){ return { id:p.uid||('mid:'+(p.memberId||p.nickname||'')), nickname:p.nickname, iconUrl:p.iconUrl, memberId:p.memberId, invited:true }; });
   _participants=reg.concat(extra);
+  // 自分のプロフィール画像/ニックネーム変更を参加者名簿へ反映（登録時にキャッシュした古い画像を更新）
+  if(_member && _myPt && _isReal){
+    var _u={};
+    if((_mProfile.iconUrl||'')!==(_myPt.iconUrl||'')) _u.iconUrl=(_mProfile.iconUrl||'');
+    if((_mProfile.nickname||'') && (_mProfile.nickname||'')!==(_myPt.nickname||'')) _u.nickname=_mProfile.nickname;
+    if(Object.keys(_u).length){
+      if('iconUrl' in _u) _myPt.iconUrl=_u.iconUrl;
+      if(_u.nickname) _myPt.nickname=_u.nickname;
+      var _mine=_participants.find(function(p){ return p.id===_uid; });
+      if(_mine){ if('iconUrl' in _u)_mine.iconUrl=_u.iconUrl; if(_u.nickname)_mine.nickname=_u.nickname; }
+      db.collection('events').doc(eventId).collection('participants').doc(_uid).set(_u,{merge:true}).catch(function(){});
+    }
+  }
   renderRoster(); renderMypageBar(); if(g('checklist-cont')&&_tasks.length) renderChecklist();
   // 参加者名簿が揃ったら、既に描画済みのスケジュールの参加メンバーを再計算して反映
   if(_schedItems.length){ var sc=g('schedule-cont'); if(sc&&sc.innerHTML) renderSchedule(_schedItems); }

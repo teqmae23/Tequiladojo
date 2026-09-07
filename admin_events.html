@@ -454,7 +454,7 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
           <option value="all">全会員に公開</option>
         </select></div>
       </div>
-      <div class="fg"><label class="fl">締め切り（任意）</label><input class="fi" id="sv-deadline" type="date"><div style="font-size:11px;color:var(--ink3);margin-top:4px">締切日を過ぎると会員は回答できなくなります。締切の有無に関わらず、保存時にタスクリストへ自動登録され、削除するとタスクも削除されます。</div></div>
+      <div class="fg"><label class="fl">締め切り（任意）</label><input class="fi" id="sv-deadline" type="date"><div style="font-size:11px;color:var(--ink3);margin-top:4px">締切日を過ぎると会員は回答できなくなります。アンケートを「受付中／締切」で保存するとタスクリストへ自動登録（下書き中は登録しません）。アンケート削除で対応タスクも削除されます。</div></div>
       <div class="fg">
         <label class="fl">対象者</label>
         <label class="reqlbl"><input type="radio" name="sv-tmode" value="all" checked onchange="onSvTMode()"> 全参加者に表示</label>
@@ -1327,7 +1327,8 @@ function saveSurvey(){
   var p;
   if(_svEditId){ p=svCol(_svEventId).doc(sid).set(data,{merge:true}); }
   else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); p=svCol(_svEventId).doc(sid).set(data); }
-  p.then(function(){ return syncSurveyTask(sid, data); })
+  // 下書き中はタスクを作らない（公開/締切時のみ連携）。下書きに戻したら既存タスクを削除。
+  p.then(function(){ return (data.status==='draft') ? deleteSurveyTask(sid) : syncSurveyTask(sid, data); })
    .then(function(){ toast(_svEditId?'更新しました':'作成しました'); closeSurveyEd(); loadSurveys(); })
    .catch(function(e){ g('sv-ed-err').textContent='保存失敗: '+e.message; })
    .finally(function(){ btn.disabled=false; });
