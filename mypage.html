@@ -1494,7 +1494,7 @@ function _biOrder(){
 function renderBiTable(){
   var s=_biState; if(!s) return;
   var marks=s.marks, revealed=s.revealed, me=_biMe();
-  var editable=!!(me && s.inputOpen && !me.confirmed);   // 自分の行が編集可能か
+  var editable=!!(me && s.inputOpen && !me.confirmed && !revealed);   // 自分の行が編集可能か（公開後は不可）
   // 各マーク（番号）のボトル名を注文から引く（「マーク対応」に管理者と同様にボトル名を表示）
   var markName={};
   (allOrders||[]).forEach(function(o){ if(o&&o.batchId===s.batchId&&o.blindId===1&&o.blindMarkId&&o.productName&&!markName[o.blindMarkId]) markName[o.blindMarkId]=o.productName; });
@@ -1541,7 +1541,10 @@ function renderBiTable(){
   }).join('');
   // 操作エリア（自分用）
   var action='';
-  if(!s.inputOpen){
+  if(revealed){
+    // 公開後（結果確定）は編集不可。確定解除ボタンも出さない。
+    action='<div style="margin-top:12px;font-size:13px;color:#1a6640;font-weight:700;text-align:center">🎭 結果が公開されました</div>';
+  }else if(!s.inputOpen){
     action='<div style="margin-top:12px;font-size:13px;color:#a37b16;text-align:center">入力は締め切られました</div>';
   }else if(me&&me.confirmed){
     action='<div style="margin-top:12px"><div style="font-size:12px;color:#1a6640;font-weight:700;margin-bottom:6px">✅ あなたの回答は確定済みです</div>'
