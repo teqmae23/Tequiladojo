@@ -1576,6 +1576,8 @@ function openSsetModal(id){
   var d=g("ss-id"); if(d) d.addEventListener("input",updateSsetKey);
 })();
 
+// 提供中のボトルデータか（在庫stock・提供終了endedは除外。未設定は提供中扱い）
+function _bdServing(bd){ var s=String((bd&&bd.status)||'serving'); return s!=='stock' && s!=='ended'; }
 // テキーラ連動
 (function(){
   var ns=g("ss-t-nom"); if(!ns) return;
@@ -1583,10 +1585,10 @@ function openSsetModal(id){
     var nom=this.value,brSel=g("ss-t-brand");
     [g("ss-t-class"),g("ss-t-bdata")].forEach(function(s){if(s){s.innerHTML='<option value="">—</option>';s.disabled=true;}});
     if(!nom){brSel.innerHTML='<option value="">—</option>';brSel.disabled=true;return;}
-    // 道場に在庫（bottleData）があるブランドのみ表示（在庫のないブランドは出さない）
+    // 提供中の在庫(bottleData)があるブランドのみ表示（在庫/提供終了しかないブランドは出さない）
     var _b2brand={}; cache.bottles.forEach(function(bt){ _b2brand[bt.id]=bt.brandId; });
     var _brandHasStock={};
-    cache.bottleData.forEach(function(bd){ var _br=bd.brandId||_b2brand[bd.bottleId||(bd.id||"").slice(0,12)]; if(_br) _brandHasStock[_br]=true; });
+    cache.bottleData.forEach(function(bd){ if(!_bdServing(bd)) return; var _br=bd.brandId||_b2brand[bd.bottleId||(bd.id||"").slice(0,12)]; if(_br) _brandHasStock[_br]=true; });
     var fl=cache.brands.filter(function(b){return (b.id||"").slice(0,4)===nom && _brandHasStock[b.id];}).sort(function(a,b){return a.id.localeCompare(b.id);});
     if(!fl.length){brSel.innerHTML='<option value="">（在庫のあるブランドがありません）</option>';brSel.disabled=true;return;}
     brSel.innerHTML='<option value="">— ブランドを選択 —</option>'+fl.map(function(b){return '<option value="'+b.id+'">'+escHtml(b.brandEs||b.id)+'</option>';}).join("");
@@ -1597,11 +1599,11 @@ function openSsetModal(id){
     var bId=this.value,clSel=g("ss-t-class");
     [g("ss-t-bdata")].forEach(function(s){if(s){s.innerHTML='<option value="">—</option>';s.disabled=true;}});
     if(!bId){clSel.innerHTML='<option value="">—</option>';clSel.disabled=true;return;}
-    // 在庫のあるクラスを bottles マスタ＋実在庫(bottleData) の両方から収集（ミクスト等の取りこぼし防止）
+    // 提供中の在庫(bottleData)があるクラスのみ収集（ミクスト等の取りこぼし防止・在庫/終了は除外）
     var _b2m={}; cache.bottles.forEach(function(bt){ _b2m[bt.id]={brandId:bt.brandId,classId:bt.classId}; });
     var used={};
-    cache.bottles.forEach(function(b){ if(b.brandId===bId && b.classId) used[b.classId]=true; });
     cache.bottleData.forEach(function(bd){
+      if(!_bdServing(bd)) return;
       var brId=bd.brandId, clId=bd.classId;
       if(!brId||!clId){ var m=_b2m[bd.bottleId||(bd.id||"").slice(0,12)]; if(m){ brId=brId||m.brandId; clId=clId||m.classId; } }
       if(brId===bId && clId) used[clId]=true;
@@ -1621,11 +1623,12 @@ function openSsetModal(id){
     if(!cId){bdSel.innerHTML='<option value="">—</option>';bdSel.disabled=true;return;}
     var mIds=cache.bottles.filter(function(b){return b.brandId===bId&&b.classId===cId;}).map(function(b){return b.id;});
     var fl=cache.bottleData.filter(function(bd){
+      if(!_bdServing(bd)) return false; // 在庫stock・提供終了endedは出さない
       if(mIds.indexOf(bd.bottleId||(bd.id||"").slice(0,12))>=0) return true;
       if(bd.brandId===bId && bd.classId===cId) return true; // bottlesマスタ未登録の在庫も拾う
       return false;
     }).sort(function(a,b){return a.id.localeCompare(b.id);});
-    if(!fl.length){bdSel.innerHTML='<option value="">（在庫なし）</option>';bdSel.disabled=true;return;}
+    if(!fl.length){bdSel.innerHTML='<option value="">（提供中のボトルがありません）</option>';bdSel.disabled=true;return;}
     bdSel.innerHTML='<option value="">— ボトルを選択 —</option>'+fl.map(function(bd){return '<option value="'+bd.id+'">'+escHtml(AuthRole.bdName(bd,'es')||bd.id)+'</option>';}).join("");
     bdSel.disabled=false;
   });
