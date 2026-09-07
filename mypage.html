@@ -452,8 +452,14 @@ async function doLogin(){
     if(!raw.includes('@')){
       // 会員IDログイン: ID→メール解決とパスワード検証はサーバー側で実施
       // （メールアドレスを端末に渡さないことで列挙を防ぐ）
-      const res=await fbFunctions.httpsCallable('loginWithMemberId')({memberId:raw,password:pw});
-      await auth.signInWithCustomToken(res.data.token);
+      try{
+        const res=await fbFunctions.httpsCallable('loginWithMemberId')({memberId:raw,password:pw});
+        await auth.signInWithCustomToken(res.data.token);
+      }catch(e1){
+        if(e1&&e1.code==='functions/unauthenticated') throw e1;
+        // サーバー経由が失敗した場合は仮想メールで直接ログイン（メール無し会員／テスト会員向け）
+        await auth.signInWithEmailAndPassword(raw+'@tequiladojo.member', pw);
+      }
     }else{
       await auth.signInWithEmailAndPassword(raw,pw);
     }
