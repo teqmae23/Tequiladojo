@@ -1178,6 +1178,107 @@ exports.forceVerifyEmail = functions
     }
   });
 
+// ── テストユーザー管理（オーナー限定・シークレット非依存） ──
+// admin_testuser.html から呼び出す。作成（create）と物理削除（hardDelete）。
+// hardDelete は安全のため isTest:true の会員のみ対象。
+exports.manageTestUser = functions.region('asia-northeast1')
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', '認証が必要です');
+    }
+    const callerSnap = await db.collection('members')
+      .where('authUid', '==', context.auth.uid).limit(1).get();
+    if (callerSnap.empty || callerSnap.docs[0].data().role !== 'owner') {
+      throw new functions.https.HttpsError('permission-denied', 'オーナー権限が必要です');
+    }
+    const op = (data && data.operation) || '';
+    const memberId = ((data && data.memberId) || '').trim();
+    if (!/^[A-Za-z0-9_-]{1,20}$/.test(memberId)) {
+      throw new functions.https.HttpsError('invalid-argument', 'IDが不正です（英数字1〜20文字）');
+    }
+    const authEmail = memberId + '@tequiladojo.member';
+
+    if (op === 'create') {
+      const password = (data && data.password) || '';
+      const nickname = (((data && data.nickname) || ('テスト' + memberId)) + '').trim();
+      if (password.length < 6) {
+        throw new functions.https.HttpsError('invalid-argument', 'パスワードは6文字以上が必要です');
+      }
+      let uid;
+      try {
+        const existing = await auth.getUserByEmail(authEmail).catch(() => null);
+        if (existing) { uid = existing.uid; await auth.updateUser(uid, { password }); }
+        else { const u = await auth.createUser({ email: authEmail, password }); uid = u.uid; }
+      } catch (e) {
+        throw new functions.https.HttpsError('internal', 'Auth作成に失敗しました: ' + e.message);
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const ref = db.collection('members').doc(memberId);
+      const snap = await ref.get();
+      if (snap.exists) {
+        await ref.set({ authUid: uid, isTest: true, nickname }, { merge: true });
+      } else {
+        await ref.set({
+          authUid: uid, realId: memberId, displayId: memberId, memberId: memberId,
+          email: null, status: 'active', role: 'member',
+          nickname, registeredAt: today,
+          visitCount: 0, totalAmount: 0, totalTequila: 0, isTest: true,
+        });
+      }
+      await db.collection('memberIndex').doc(memberId).set({ email: authEmail });
+      return { success: true, uid };
+    }
+
+    if (op === 'hardDelete') {
+      const snap = await db.collection('members').doc(memberId).get();
+      if (!snap.exists) {
+        throw new functions.https.HttpsError('not-found', '会員が見つかりません');
+      }
+      const m = snap.data() || {};
+      if (m.isTest !== true) {
+        throw new functions.https.HttpsError('permission-denied', 'テストユーザー(isTest:true)のみ物理削除できます');
+      }
+      // Auth削除（authUid、無ければメールから解決）
+      let authDeleted = false;
+      try {
+        let uid = m.authUid;
+        if (!uid) { const u = await auth.getUserByEmail(authEmail).catch(() => null); uid = u && u.uid; }
+        if (uid) { await auth.deleteUser(uid); authDeleted = true; }
+      } catch (e) { /* Authが無くてもFirestore削除は続行 */ }
+      // 関連データ削除（visits / orders / cocktailOrders / memberPrivate / memberIndex / members）
+      const visitsSnap = await db.collection('visits').where('memberId', '==', memberId).get();
+      const visitIds = visitsSnap.docs.map((d) => d.id);
+      const orderRefs = [];
+      const seen = {};
+      const pushRef = (r) => { const k = r.path; if (!seen[k]) { seen[k] = true; orderRefs.push(r); } };
+      for (let i = 0; i < visitIds.length; i += 10) {
+        const chunk = visitIds.slice(i, i + 10);
+        const s1 = await db.collection('orders').where('visitKey', 'in', chunk).get();
+        s1.docs.forEach((d) => pushRef(d.ref));
+        const s1b = await db.collection('orders').where('visitId', 'in', chunk).get();
+        s1b.docs.forEach((d) => pushRef(d.ref));
+        const s2 = await db.collection('cocktailOrders').where('visitKey', 'in', chunk).get();
+        s2.docs.forEach((d) => pushRef(d.ref));
+      }
+      const allRefs = [];
+      visitsSnap.docs.forEach((d) => allRefs.push(d.ref));
+      orderRefs.forEach((r) => allRefs.push(r));
+      for (let i = 0; i < allRefs.length; i += 450) {
+        const b = db.batch();
+        allRefs.slice(i, i + 450).forEach((r) => b.delete(r));
+        await b.commit();
+      }
+      const fin = db.batch();
+      fin.delete(db.collection('members').doc(memberId));
+      fin.delete(db.collection('memberIndex').doc(memberId));
+      fin.delete(db.collection('memberPrivate').doc(memberId));
+      await fin.commit();
+      return { success: true, authDeleted, deletedVisits: visitsSnap.size, deletedOrders: orderRefs.length };
+    }
+
+    throw new functions.https.HttpsError('invalid-argument', '不明な操作です');
+  });
+
 // ═══════════════════════════════════════════════════════════════════
 //  会員セルフ来店（QR）＆ オンライン注文
 //  visits/orders はスタッフ限定書き込みのため、会員操作はここ経由で行う。

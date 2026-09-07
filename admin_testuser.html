@@ -120,6 +120,19 @@ button{cursor:pointer;font-family:var(--sans)} input{font-family:var(--sans)}
 
       <div class="log" id="log"></div>
     </div>
+
+    <div class="sect">
+      <div class="sect-title">テストユーザーの物理削除</div>
+      <div class="note">
+        <b>isTest:true</b> のテストユーザーのみ、認証アカウント・会員ドキュメント・関連データ（来店/注文等）を<b>完全に削除</b>します。<b>元に戻せません。</b><br>
+        通常会員（isTest でない）は保護のため削除できません（会員管理画面から操作してください）。
+      </div>
+      <div id="testlist"><div class="hint">読み込み中...</div></div>
+      <div class="actions">
+        <button class="btn bg2" id="btn-reload">再読み込み</button>
+      </div>
+      <div class="log" id="dellog"></div>
+    </div>
   </div>
 </div>
 
@@ -172,29 +185,13 @@ async function createTestUser(u){
   var id=u.id, pw=u.pw, nick=u.nick||('テスト'+id);
   if(!/^[A-Za-z0-9_-]{1,20}$/.test(id)){ logLine('err','✕','<span class="mono">'+esc(id||'(空)')+'</span> IDが不正です（英数字1〜20文字）'); return; }
   if((pw||'').length<6){ logLine('err','✕','<span class="mono">'+esc(id)+'</span> パスワードは6文字以上が必要です'); return; }
-  var ref=db.collection('members').doc(id);
-  var snap;
-  try{ snap=await ref.get(); }catch(e){ logLine('err','✕','<span class="mono">'+esc(id)+'</span> members読取失敗: '+esc(e.message||e)); return; }
-  if(snap.exists && snap.data().authUid){ logLine('skip','—','<span class="mono">'+esc(id)+'</span> は既に存在します（authUid有り）。スキップ'); return; }
-  // 1) membersドキュメント（未作成なら作成）
-  if(!snap.exists){
-    try{
-      await ref.set({
-        realId:id, displayId:id, memberId:id, email:null,
-        status:'active', role:'member', nickname:nick,
-        registeredAt:new Date().toISOString().slice(0,10),
-        visitCount:0, totalAmount:0, totalTequila:0,
-        isTest:true, createdAt:firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }catch(e){ logLine('err','✕','<span class="mono">'+esc(id)+'</span> members作成失敗: '+esc(e.message||e)); return; }
-  }
-  // 2) 認証アカウント作成（Cloud Function・オーナー限定）
+  // 会員ドキュメント作成＋認証アカウント作成をサーバー側で一括実行（オーナー限定）
   try{
-    var res=await fbFunctions.httpsCallable('adminAuthOperation')({operation:'create', memberId:id, password:pw});
+    var res=await fbFunctions.httpsCallable('manageTestUser')({operation:'create', memberId:id, password:pw, nickname:nick});
     logLine('ok','✓','<span class="mono">'+esc(id)+'</span> 作成しました（ニックネーム: '+esc(nick)+' / pass: <span class="mono">'+esc(pw)+'</span>）uid=<span class="mono">'+esc((res&&res.data&&res.data.uid)||'')+'</span>');
   }catch(e){
     var m=(e&&e.message)||String(e);
-    logLine('err','✕','<span class="mono">'+esc(id)+'</span> 認証アカウント作成失敗: '+esc(m)+'（members側は作成済みの可能性あり）');
+    logLine('err','✕','<span class="mono">'+esc(id)+'</span> 作成失敗: '+esc(m));
   }
 }
 
@@ -206,16 +203,54 @@ async function createAll(){
   for(var i=0;i<rows.length;i++){ await createTestUser(rows[i]); }
   logLine('skip','ℹ','完了しました。会員ページ（/member.html）からID＋パスワードでログインを確認できます。');
   btn.disabled=false; btn.textContent=old;
+  loadTestUsers();
+}
+
+// ── テストユーザー一覧・物理削除 ──
+function dlog(cls, ic, html){
+  var d=document.createElement('div'); d.className='log-row '+cls;
+  d.innerHTML='<span class="ic">'+ic+'</span><span>'+html+'</span>';
+  g('dellog').appendChild(d);
+}
+async function loadTestUsers(){
+  var box=g('testlist'); box.innerHTML='<div class="hint">読み込み中...</div>';
+  try{
+    var snap=await db.collection('members').where('isTest','==',true).get();
+    if(snap.empty){ box.innerHTML='<div class="hint">テストユーザーはありません。</div>'; return; }
+    var rows=snap.docs.map(function(d){ var m=d.data()||{};
+      return '<div class="trow" style="grid-template-columns:1fr 1fr auto">'
+        +'<div class="field"><label>会員ID</label><div class="mono" style="padding:9px 2px">'+esc(d.id)+'</div></div>'
+        +'<div class="field"><label>ニックネーム</label><div style="padding:9px 2px">'+esc(m.nickname||'')+(m.authUid?'':' <span style="color:var(--red)">(Auth未作成)</span>')+'</div></div>'
+        +'<button class="bd" data-del-id="'+esc(d.id)+'">物理削除</button>'
+        +'</div>';
+    }).join('');
+    box.innerHTML=rows;
+    Array.prototype.forEach.call(box.querySelectorAll('[data-del-id]'),function(btn){
+      btn.addEventListener('click',function(){ hardDelete(this.getAttribute('data-del-id')); });
+    });
+  }catch(e){ box.innerHTML='<div class="hint" style="color:var(--red)">一覧取得失敗: '+esc(e.message||e)+'</div>'; }
+}
+async function hardDelete(id){
+  if(!window.confirm('テストユーザー「'+id+'」を物理削除します。認証アカウント・会員・関連データを完全に削除し、元に戻せません。よろしいですか？')) return;
+  try{
+    var res=await fbFunctions.httpsCallable('manageTestUser')({operation:'hardDelete', memberId:id});
+    var d=(res&&res.data)||{};
+    dlog('ok','✓','<span class="mono">'+esc(id)+'</span> 物理削除しました（Auth:'+(d.authDeleted?'削除':'なし')+' / 来店'+((d.deletedVisits!=null)?d.deletedVisits:0)+'件 / 注文'+((d.deletedOrders!=null)?d.deletedOrders:0)+'件）');
+  }catch(e){
+    dlog('err','✕','<span class="mono">'+esc(id)+'</span> 物理削除失敗: '+esc((e&&e.message)||e));
+  }
+  loadTestUsers();
 }
 
 // ── 認証ゲート（オーナー限定） ──
-AuthRole.requireOwner(auth, function(){ g('app').style.display='block'; renderRows(); },
+AuthRole.requireOwner(auth, function(){ g('app').style.display='block'; renderRows(); loadTestUsers(); },
   function(){ g('login-screen').style.display='flex'; });
 g('lbtn').addEventListener('click',function(){ auth.signInWithEmailAndPassword((g('lemail').value||'').trim(), g('lpass').value).catch(function(e){ g('lerr').textContent=e.message; }); });
 g('lpass').addEventListener('keydown',function(e){ if(e.key==='Enter') g('lbtn').click(); });
 g('btn-logout').addEventListener('click',function(){ auth.signOut().then(function(){ location.reload(); }); });
 g('btn-add').addEventListener('click',function(){ _preset.push({id:'',pw:'',nick:''}); renderRows(); });
 g('btn-create').addEventListener('click',createAll);
+g('btn-reload').addEventListener('click',loadTestUsers);
 </script>
 </body>
 </html>
