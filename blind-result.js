@@ -256,6 +256,8 @@ var BlindResult = (function(){
   // ── Public: answer/winner setters (called from inline onclick) ──
   function _setAnswer(mi, mki, markId){
     _closePanel();
+    _state.adminEntered = _state.adminEntered || {};
+    _state.adminEntered[mi + ':' + mki] = true; // 管理者がこのセルを再入力＝マーク表示解禁
     if(!markId){
       _state.answers[mi][mki] = null;
       _renderTable();
@@ -273,6 +275,8 @@ var BlindResult = (function(){
 
   function _setWinner(mi, markId){
     _closePanel();
+    _state.adminEnteredWinner = _state.adminEnteredWinner || {};
+    _state.adminEnteredWinner[mi] = true;
     _state.winners[mi] = markId || null;
     _renderTable();
     _persistRowGuess(mi);
@@ -362,17 +366,18 @@ var BlindResult = (function(){
       //  許可中: 会員行は入力不可・「?」／スタッフ行のみ編集（自分のマーク表示）
       //  締切後(一度許可済): 管理者は全行編集可・ただしマークは「?」で秘匿
       //  許可前(準備中): 全員編集・マーク表示
-      var editable, hideMark;
-      if(lockedVk){ editable = (g.visitKey === lockedVk); hideMark = false; }
-      else if(openNow){ editable = _isStaffRow(g); hideMark = false; }
-      else if(everOpened){ editable = true; hideMark = true; }
-      else { editable = true; hideMark = false; }
-      if(isRevealed) hideMark = false; // 公開後はマーク表示
+      var editable;
+      if(lockedVk){ editable = (g.visitKey === lockedVk); }
+      else if(openNow){ editable = _isStaffRow(g); }
+      else { editable = true; } // 締切後(everOpened) / 準備中 は管理者が全行入力可
       var isMyRow = editable;
+      // 締切後(一度許可済)は、管理者が再入力したセル以外はマークを「?」で秘匿
+      var rowHideBase = everOpened && !openNow && !isRevealed;
       var cells = marks.map(function(m, mki){
         var chosen = answers[mi][mki];
         var cellClass = 'mark-cell';
         var cellContent = '';
+        var hideMark = rowHideBase && !((s.adminEntered||{})[mi + ':' + mki]);
         if(!isMyRow){
           if(chosen){
             if(isRevealed){
@@ -410,6 +415,7 @@ var BlindResult = (function(){
         return '<td class="' + cellClass + '">' + cellContent + '</td>';
       }).join('');
 
+      var winHideMark = rowHideBase && !((s.adminEnteredWinner||{})[mi]);
       var w = winners[mi];
       var winnerCell;
       if(!isMyRow){
@@ -427,7 +433,7 @@ var BlindResult = (function(){
         var msw2 = _markSym(blindMarks.find(function(x){ return x.id === w; }) || {id: w});
         winnerCell = '<span style="color:' + msw2.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + msw2.sym + '</span>';
       } else {
-        winnerCell = _buildWinnerPicker(mi, w, hideMark);
+        winnerCell = _buildWinnerPicker(mi, w, winHideMark);
       }
 
       var scoreCell = '—';
@@ -501,7 +507,8 @@ var BlindResult = (function(){
       answers: members.map(function(){ return marks.map(function(){ return null; }); }),
       winners: members.map(function(){ return null; }),
       revealed: false, allConfirmed: false,
-      lockedVisitKey: lockedVisitKey || null
+      lockedVisitKey: lockedVisitKey || null,
+      adminEntered: {}, adminEnteredWinner: {} // 締切後に管理者が再入力したセル（そのセルはマーク表示）
     };
     _renderTable();
     _g('btn-show-result').disabled = false;

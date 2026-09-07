@@ -10,7 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="/auth-role.js?v=20260829"></script>
-<script src="blind-result.js?v=20260907b"></script>
+<script src="blind-result.js?v=20260907c"></script>
 <style>
 :root{
   --ink:#18110a;--ink2:#4a3820;--ink3:#9a8470;
@@ -220,6 +220,8 @@ async function loadAndShow(){
   hideStatus();
   BlindResult.open(batchGroup, visitKey||null);
   var hasData=await BlindResult.loadExisting();
+  if(BlindResult.loadGuesses) await BlindResult.loadGuesses();  // 会員入力＋inputOpen/公開状態を取り込み
+  if(BlindResult.watchGuesses) BlindResult.watchGuesses();      // リアルタイム反映
   if(hasData) BlindResult.show();
 }
 </script>
