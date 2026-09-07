@@ -180,8 +180,13 @@ async function doLogin(){
   btn.disabled=true;btn.textContent='ログイン中...';err.textContent='';
   try{
     if(!raw.includes('@')){
-      const res=await fbFunctions.httpsCallable('loginWithMemberId')({memberId:raw,password:pw});
-      await auth.signInWithCustomToken(res.data.token);
+      try{
+        const res=await fbFunctions.httpsCallable('loginWithMemberId')({memberId:raw,password:pw});
+        await auth.signInWithCustomToken(res.data.token);
+      }catch(e1){
+        if(e1&&e1.code==='functions/unauthenticated') throw e1;
+        await auth.signInWithEmailAndPassword(raw+'@tequiladojo.member', pw);
+      }
     }else{
       await auth.signInWithEmailAndPassword(raw,pw);
     }
