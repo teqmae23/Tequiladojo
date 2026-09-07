@@ -522,7 +522,18 @@ auth.onAuthStateChanged(function(user){
 
 var _selfReg=false, _viewReqStatus='';
 function loadEvent(){
-  if(!eventId){ g('wrap').innerHTML='<div class="msg">イベントが指定されていません。</div>'; return; }
+  if(!eventId){
+    // ?id が無い場合はパス（例 /tddt2026）を短縮URL(topPageUrl)として解決。URLは変えずに表示する。
+    var slug=(location.pathname||'').replace(/^\/+/,'').replace(/\/+$/,'').replace(/\.html?$/i,'');
+    if(!slug){ g('wrap').innerHTML='<div class="msg">イベントが指定されていません。</div>'; return; }
+    db.collection('events').where('published','==',true).get().then(function(snap){
+      var hit=null;
+      snap.forEach(function(d){ var t=(((d.data()||{}).topPageUrl)||'').trim().replace(/^\/+/,'').replace(/\.html?$/i,'').toLowerCase(); if(!hit&&t&&t===slug.toLowerCase()) hit=d.id; });
+      if(hit){ eventId=hit; loadEvent(); }
+      else { g('wrap').innerHTML='<div class="msg">イベントが見つかりませんでした。</div>'; }
+    }).catch(function(){ g('wrap').innerHTML='<div class="msg">読み込みに失敗しました。</div>'; });
+    return;
+  }
   var ref=db.collection('events').doc(eventId);
   Promise.all([
     ref.get(),
