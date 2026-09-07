@@ -1123,14 +1123,14 @@ function buildItemRowsHtml(orders,showActions){
       if(!group.length)return;
       const groupTotal=group.reduce((s,x)=>s+calcAmt(x),0);
       const children=group.map(x=>{
-        const mk=x.blindId===1&&x.blindMarkId?`<span style="font-size:14px;margin-right:4px">${markDisplay(x.blindMarkId)}</span>`:'';
+        const mk=x.blindId===1&&x.blindMarkId?`<span style="font-size:14px;margin-right:4px">${((x.served||1)!==1)?'<span style="color:var(--ink3);font-weight:700">?</span>':markDisplay(x.blindMarkId)}</span>`:'';
         return`<div class="item-row" style="padding-left:16px;color:var(--ink2)">${mk}<span class="item-name" style="font-size:12px">${esc(x.productName)}</span><span class="item-qty">${x.qty}${x.unit}</span><span class="item-price"></span></div>`;
       }).join('');
       const cancelBtn=showActions?`<button class="srv-cancel-btn" onclick="event.stopPropagation();cancelSetGroupItems('${esc(o.setGroupId)}')">✕</button>`:'';
       html+=`<div style="border:1px solid var(--border);border-radius:4px;margin-bottom:2px"><div class="item-row" style="background:var(--cream2);font-weight:600"><span class="item-name">${esc(o.setName||'セット')}</span><span class="item-qty"></span><span class="item-price">¥${groupTotal.toLocaleString()}</span>${cancelBtn}</div>${children}</div>`;
     }else{
       if(o.served===0)return;
-      const mk=o.blindId===1&&o.blindMarkId?`<span style="font-size:14px;margin-right:4px">${markDisplay(o.blindMarkId)}</span>`:'';
+      const mk=o.blindId===1&&o.blindMarkId?`<span style="font-size:14px;margin-right:4px">${((o.served||1)!==1)?'<span style="color:var(--ink3);font-weight:700">?</span>':markDisplay(o.blindMarkId)}</span>`:'';
       const giftBadge=o.isGiftPayer?`<span class="gift-badge">奢×${o.giftCount||0}人</span>`
         :o.isGiftRecipient?`<span class="gift-recv-badge">奢られ${o.giftFromName?'（'+esc(o.giftFromName)+'）':''}</span>`
         :o.isGiftSelf?`<span class="gift-badge">本人分</span>`:'';
