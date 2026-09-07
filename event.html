@@ -109,6 +109,8 @@ a{color:var(--gold-d)}
 .rbar-fl{height:100%;background:var(--gold);border-radius:6px}
 .rbar-ct{min-width:40px;color:var(--ink3);flex-shrink:0}
 .agg-txt{border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;font-size:13px;margin-bottom:5px;background:var(--cream)}
+.fold-hd{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 14px;margin-top:12px;background:var(--cream2);border:1px solid var(--border);border-radius:var(--r);font-size:13px;font-weight:700;color:var(--ink2);cursor:pointer;text-align:left}
+.fold-hd:hover{background:var(--cream3)}
 .agg-txt .who{font-size:10px;color:var(--ink3);margin-top:3px}
 .res-sec{margin-top:6px;border-top:1px dashed var(--border2);padding-top:12px}
 /* 参加者一覧・マイページ */
@@ -1665,6 +1667,7 @@ function loadChecklist(){
     .catch(function(){ var el=g('checklist-cont'); if(el) el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">読み込みに失敗しました</div></div>'; });
 }
 var _ckExpanded={};
+var _ckPastOpen=false;
 var CK_STATE_ICON={done:'〇', todo:'⚠️', over:'🚨'};
 var PROG_COLORS={
   red:{bg:'#fbdcd6',tx:'#a5341f',bd:'#e5b0a6'},
@@ -1769,6 +1772,7 @@ function taskDetailHtml(t){
     var dlIn=t.deadline?('<b class="ck-dl-inline'+(over?' over':'')+'">（期限: '+esc(t.deadline)+(over?' 超過':'')+'）</b>'):'';
     hh+='<div class="ck-content">'+esc(t.content||'')+((t.content&&dlIn)?' ':'')+dlIn+'</div>';
   }
+  if(t.linkSurveyId) hh+='<div class="ck-attach">📋 <a href="javascript:void(0)" onclick="gotoSurvey(\''+esc(t.linkSurveyId)+'\')">アンケートに回答する ↗</a></div>';
   if(t.sampleUrl) hh+='<div class="ck-attach">📄 <a href="'+esc(t.sampleUrl)+'" target="_blank" rel="noopener">提出見本を見る ↗</a></div>';
   if(t.attachmentUrl) hh+='<div class="ck-attach">📎 <a href="'+esc(t.attachmentUrl)+'" target="_blank" rel="noopener">'+esc(t.attachmentName||'参考ファイル')+'</a></div>';
   if(_isReal && active){
@@ -1842,25 +1846,35 @@ function renderChecklist(){
     +'<div class="ck-summary '+ov+'">'+CK_STATE_ICON[ov]+' '+ckHead+'（完了：'+checked+'件 ／ 未完了：'+unchecked+'件）</div></div>';
   if(overdue>0) h+='<div class="ck-warn">🚨 期限切れのタスクがあります！</div>';
   h+='<div class="ck-divider"></div>';
-  h+=arr.map(function(t){
-    var s=_taskMyState(t);
-    var active=_taskActiveSelf(t);
-    var open=!!_ckExpanded[t.id];
-    // 進捗バッジ（進捗管理項目のみ）
-    var badge='';
-    var st=_progStates(t);
-    if(st){
-      var myc=_myComp(t); var pr=(myc&&myc.progress)?_progState(t,myc.progress):null;
-      if(pr){ var c=progColor(pr.color); badge='<span class="ck-prog-badge" style="background:'+c.bg+';color:'+c.tx+';border-color:'+c.bd+'">'+esc(pr.label)+'</span>'; }
-      else { var gc=PROG_COLORS.gray; badge='<span class="ck-prog-badge" style="background:'+gc.bg+';color:'+gc.tx+'">未設定</span>'; }
-    }
-    return '<div class="ck-item '+s+(active?'':' ck-grayed')+'">'
-      +'<div class="ck-hd2" onclick="toggleTaskDetail(\''+esc(t.id)+'\')"><span class="ck-hd-ic">'+CK_STATE_ICON[s]+'</span><span class="ck-hd-ttl">'+esc(t.title||'')+'</span>'+badge+'<span class="ck-hd-caret" id="ckcar-'+esc(t.id)+'">'+(open?'▾':'▸')+'</span></div>'
-      +'<div class="ck-detail" id="ckd-'+esc(t.id)+'" style="display:'+(open?'':'none')+'">'+taskDetailHtml(t)+'</div></div>';
-  }).join('');
+  // 完了済み（自分が完了した項目）は「過去のタスク」に畳む。未完了・期限切れ・閲覧のみは上に残す。
+  var isPast=function(t){ return _taskActiveSelf(t) && _taskMyState(t)==='done'; };
+  var actArr=arr.filter(function(t){ return !isPast(t); });
+  var pastArr=arr.filter(isPast);
+  h+= actArr.length?actArr.map(ckItemHtml).join(''):'<div style="font-size:12px;color:var(--ink3);padding:4px 2px">未完了のタスクはありません。</div>';
   h+='</div>';
+  if(pastArr.length){
+    h+='<div class="card"><button type="button" class="fold-hd" onclick="togglePastTasks()"><span>🗂 過去のタスク（完了 '+pastArr.length+'件）</span><span id="ck-past-car">'+(_ckPastOpen?'▾':'▸')+'</span></button>'
+      +'<div id="ck-past-body" style="display:'+(_ckPastOpen?'':'none')+'">'+pastArr.map(ckItemHtml).join('')+'</div></div>';
+  }
   el.innerHTML=h;
 }
+function ckItemHtml(t){
+  var s=_taskMyState(t);
+  var active=_taskActiveSelf(t);
+  var open=!!_ckExpanded[t.id];
+  // 進捗バッジ（進捗管理項目のみ）
+  var badge='';
+  var st=_progStates(t);
+  if(st){
+    var myc=_myComp(t); var pr=(myc&&myc.progress)?_progState(t,myc.progress):null;
+    if(pr){ var c=progColor(pr.color); badge='<span class="ck-prog-badge" style="background:'+c.bg+';color:'+c.tx+';border-color:'+c.bd+'">'+esc(pr.label)+'</span>'; }
+    else { var gc=PROG_COLORS.gray; badge='<span class="ck-prog-badge" style="background:'+gc.bg+';color:'+gc.tx+'">未設定</span>'; }
+  }
+  return '<div class="ck-item '+s+(active?'':' ck-grayed')+'">'
+    +'<div class="ck-hd2" onclick="toggleTaskDetail(\''+esc(t.id)+'\')"><span class="ck-hd-ic">'+CK_STATE_ICON[s]+'</span><span class="ck-hd-ttl">'+esc(t.title||'')+'</span>'+badge+'<span class="ck-hd-caret" id="ckcar-'+esc(t.id)+'">'+(open?'▾':'▸')+'</span></div>'
+    +'<div class="ck-detail" id="ckd-'+esc(t.id)+'" style="display:'+(open?'':'none')+'">'+taskDetailHtml(t)+'</div></div>';
+}
+function togglePastTasks(){ _ckPastOpen=!_ckPastOpen; var b=g('ck-past-body'),c=g('ck-past-car'); if(b)b.style.display=_ckPastOpen?'':'none'; if(c)c.textContent=_ckPastOpen?'▾':'▸'; }
 function taskAction(taskId){
   if(!_isReal) return;
   var t=_tasks.find(function(x){return x.id===taskId;}); if(!t) return;
@@ -2154,23 +2168,44 @@ function loadSurveys(eventPublished){
   }).then(function(){
     if(!list.length){ return; }
     var box=g('surveys');
-    box.innerHTML='<div class="sec" style="margin:20px 2px 8px">アンケート</div>'
-      +list.map(function(s){ return '<div class="sv-card" id="sv-'+esc(s.id)+'"></div>'; }).join('');
+    var actList=list.filter(function(s){ return !_svIsPast(s); });
+    var pastList=list.filter(function(s){ return _svIsPast(s); });
+    var card=function(s){ return '<div class="sv-card" id="sv-'+esc(s.id)+'"></div>'; };
+    var html='<div class="sec" style="margin:20px 2px 8px">アンケート</div>'
+      + (actList.length?actList.map(card).join(''):'<div class="sv-note" style="text-align:left">受付中のアンケートはありません。</div>');
+    if(pastList.length){
+      html+='<button type="button" class="fold-hd" onclick="togglePastSurveys()"><span>🗂 過去のアンケート（'+pastList.length+'件）</span><span id="sv-past-car">▸</span></button>'
+        +'<div id="sv-past-body" style="display:none">'+pastList.map(card).join('')+'</div>';
+    }
+    box.innerHTML=html;
     list.forEach(function(s){ _ans[s.id]=_myResp[s.id]&&_myResp[s.id].answers?JSON.parse(JSON.stringify(_myResp[s.id].answers)):{}; _svComment[s.id]=(_myResp[s.id]&&_myResp[s.id].comment)||''; renderCard(s.id); });
   }).catch(function(e){ /* アンケートは任意機能: 失敗しても本体表示は維持 */ });
 }
 
+function _svToday(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function _svExpired(s){ return !!(s && s.deadline && s.deadline < _svToday()); } // 締切日を過ぎたら受付終了
+function _svIsPast(s){ return (s.status==='closed') || _svExpired(s); }         // 過去のアンケート判定
 function tagFor(s){
   if(_myResp[s.id]) return '<span class="sv-tag tag-done">回答済み</span>';
-  if(s.status==='open') return '<span class="sv-tag tag-open">受付中</span>';
-  if(s.status==='closed') return '<span class="sv-tag tag-closed">受付終了</span>';
+  if(s.status==='open' && !_svExpired(s)) return '<span class="sv-tag tag-open">受付中</span>';
+  if(s.status==='closed' || _svExpired(s)) return '<span class="sv-tag tag-closed">受付終了</span>';
   return '';
+}
+function togglePastSurveys(){ var b=g('sv-past-body'),c=g('sv-past-car'); if(!b)return; var open=b.style.display!=='none'; b.style.display=open?'none':''; if(c)c.textContent=open?'▸':'▾'; }
+// タスクリストのリンクからアンケートへジャンプ（アコーディオン・過去折り畳みを開いてスクロール）
+function gotoSurvey(sid){
+  var acc=g('accbd-survey'); if(acc && acc.style.display==='none') toggleAcc('survey');
+  var card=g('sv-'+sid), pastBody=g('sv-past-body');
+  if(pastBody && card && pastBody.contains(card) && pastBody.style.display==='none') togglePastSurveys();
+  setTimeout(function(){ var el=g('sv-'+sid); if(el){ el.scrollIntoView({behavior:'smooth',block:'start'}); } else { var s=g('surveys'); if(s) s.scrollIntoView({behavior:'smooth'}); } },80);
 }
 function renderCard(sid){
   var s=_surveys[sid]; var el=g('sv-'+sid); if(!s||!el) return;
-  var open=(s.status==='open');
+  var expired=_svExpired(s);
+  var open=(s.status==='open') && !expired;
   var html='<div class="sv-hd"><span class="sv-ti">'+esc(s.title||'アンケート')+'</span>'+tagFor(s)+'</div>';
   if(s.description) html+='<div class="sv-de">'+esc(s.description)+'</div>';
+  if(s.deadline) html+='<div class="sv-de" style="font-size:12px;color:'+(expired?'var(--red)':'var(--ink3)')+'">📅 締切: '+esc(fmtDate(s.deadline))+(expired?'（受付終了）':'')+'</div>';
   if(open){
     html+=(s.questions||[]).map(function(q){ return qForm(sid,q); }).join('');
     if(s.commentEnabled){
@@ -2182,7 +2217,8 @@ function renderCard(sid){
     if(_myResp[sid]) html+='<div class="sv-note">前回の回答を読み込んでいます。変更して更新できます。</div>';
   } else {
     // 締切・下書き（スタッフプレビュー）
-    html+='<div class="sv-note" style="text-align:left">'+(s.status==='closed'?'このアンケートは受付を終了しました。':'（下書き：会員には表示されません）')+'</div>';
+    var _cn=expired?'このアンケートは締め切りました。':(s.status==='closed'?'このアンケートは受付を終了しました。':'（下書き：会員には表示されません）');
+    html+='<div class="sv-note" style="text-align:left">'+_cn+'</div>';
     if(_myResp[sid]) html+='<div class="res-sec">'+ownAnswers(s)+'</div>';
   }
   // 結果
@@ -2225,6 +2261,7 @@ function setComment(sid,v){ _svComment[sid]=v; }
 function submitSurvey(sid){
   var s=_surveys[sid]; if(!s) return;
   var err=g('sverr-'+sid); if(err) err.textContent='';
+  if(_svExpired(s)){ if(err) err.textContent='このアンケートは締め切りました'; renderCard(sid); return; }
   var ans=_ans[sid]||{};
   for(var i=0;i<(s.questions||[]).length;i++){
     var q=s.questions[i]; if(!q.required) continue;

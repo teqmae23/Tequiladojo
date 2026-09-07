@@ -454,6 +454,7 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
           <option value="all">全会員に公開</option>
         </select></div>
       </div>
+      <div class="fg"><label class="fl">締め切り（任意）</label><input class="fi" id="sv-deadline" type="date"><div style="font-size:11px;color:var(--ink3);margin-top:4px">締切日を過ぎると会員は回答できなくなります。締切の有無に関わらず、保存時にタスクリストへ自動登録され、削除するとタスクも削除されます。</div></div>
       <div class="fg">
         <label class="fl">対象者</label>
         <label class="reqlbl"><input type="radio" name="sv-tmode" value="all" checked onchange="onSvTMode()"> 全参加者に表示</label>
@@ -1216,6 +1217,7 @@ function openSurveyEd(sid){
   g('sv-desc').value=s?(s.description||''):'';
   g('sv-status').value=s?(s.status||'draft'):'draft';
   g('sv-vis').value=s?(s.resultVisibility||'staff'):'staff';
+  g('sv-deadline').value=s?(s.deadline||''):'';
   // 対象者
   var tmode=(s&&s.targetMode==='selected')?'selected':'all';
   _svTargetSel={}; if(s&&Array.isArray(s.targetIds)) s.targetIds.forEach(function(id){ _svTargetSel[id]=true; });
@@ -1315,25 +1317,64 @@ function saveSurvey(){
   var data={
     title:title, description:(g('sv-desc').value||'').trim(),
     status:g('sv-status').value||'draft', resultVisibility:g('sv-vis').value||'staff',
+    deadline:(g('sv-deadline').value||''),
     targetMode:tmode, targetIds:targetIds,
     commentEnabled:commentEnabled, commentLabel:commentEnabled?((g('sv-comment-label').value||'').trim()||'ご意見・ご感想'):'',
     questions:qs, updatedAt:firebase.firestore.FieldValue.serverTimestamp()
   };
   var btn=g('sv-ed-save'); btn.disabled=true;
+  var sid=_svEditId||svCol(_svEventId).doc().id;
   var p;
-  if(_svEditId){ p=svCol(_svEventId).doc(_svEditId).set(data,{merge:true}); }
-  else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); p=svCol(_svEventId).add(data); }
-  p.then(function(){ toast(_svEditId?'更新しました':'作成しました'); closeSurveyEd(); loadSurveys(); })
+  if(_svEditId){ p=svCol(_svEventId).doc(sid).set(data,{merge:true}); }
+  else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); p=svCol(_svEventId).doc(sid).set(data); }
+  p.then(function(){ return syncSurveyTask(sid, data); })
+   .then(function(){ toast(_svEditId?'更新しました':'作成しました'); closeSurveyEd(); loadSurveys(); })
    .catch(function(e){ g('sv-ed-err').textContent='保存失敗: '+e.message; })
    .finally(function(){ btn.disabled=false; });
+}
+// アンケートに対応するタスクリスト項目を作成/更新（1アンケート=1タスク・冪等）
+function syncSurveyTask(sid, sv){
+  var col=taskCol(_svEventId);
+  return col.where('autoFromSurvey','==',sid).get().then(function(snap){
+    var taskData={
+      title:'📋 アンケート回答: '+(sv.title||'アンケート'),
+      content:(sv.description||''),
+      deadline:sv.deadline||'',
+      visibility:'private',
+      autoFromSurvey:sid, linkSurveyId:sid,
+      audience:(sv.targetMode==='selected'?'selected':'all'),
+      audienceIds:(sv.targetMode==='selected'?(sv.targetIds||[]):[]),
+      showScope:'all',
+      requireFile:false, requireMessage:false,
+      progressEnabled:false, progressStates:[],
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if(!snap.empty){
+      var b=db.batch();
+      snap.docs.forEach(function(d){ b.set(d.ref, taskData, {merge:true}); });
+      return b.commit();
+    }
+    taskData.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+    taskData.seq=Date.now(); // 末尾寄りに配置
+    return col.add(taskData);
+  });
+}
+// アンケート削除時に紐づくタスクを削除
+function deleteSurveyTask(sid){
+  return taskCol(_svEventId).where('autoFromSurvey','==',sid).get().then(function(snap){
+    if(snap.empty) return null;
+    var b=db.batch(); snap.docs.forEach(function(d){ b.delete(d.ref); }); return b.commit();
+  }).catch(function(){});
 }
 function delSurvey(){
   if(!_svEditId) return;
   if(!confirm('このアンケートを削除しますか？回答も含めて元に戻せません。')) return;
   var ref=svCol(_svEventId).doc(_svEditId);
+  var delSid=_svEditId;
   ref.collection('responses').get().then(function(rs){
     var batch=db.batch(); rs.docs.forEach(function(d){ batch.delete(d.ref); }); return batch.commit();
   }).then(function(){ return ref.delete(); })
+    .then(function(){ return deleteSurveyTask(delSid); })
     .then(function(){ toast('削除しました'); closeSurveyEd(); loadSurveys(); })
     .catch(function(e){ g('sv-ed-err').textContent='削除失敗: '+e.message; });
 }
