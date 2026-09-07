@@ -336,8 +336,13 @@ var BlindResult = (function(){
         var cellContent = '';
         if(!isMyRow){
           if(chosen){
-            var ms2 = _markSym(blindMarks.find(function(x){ return x.id === chosen; }) || {id: chosen});
-            cellContent = '<span style="color:' + ms2.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + ms2.sym + '</span>';
+            if(isRevealed){
+              var ms2 = _markSym(blindMarks.find(function(x){ return x.id === chosen; }) || {id: chosen});
+              cellContent = '<span style="color:' + ms2.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + ms2.sym + '</span>';
+            } else {
+              // 公開前は他の参加者の選択マークを「?」で隠す（スタッフ参加時も同様）
+              cellContent = '<span style="color:var(--ink3);font-weight:700">?</span>';
+            }
           } else {
             cellContent = '<span style="color:var(--ink3)">—</span>';
           }
@@ -370,8 +375,12 @@ var BlindResult = (function(){
       var winnerCell;
       if(!isMyRow){
         if(w){
-          var msw = _markSym(blindMarks.find(function(x){ return x.id === w; }) || {id: w});
-          winnerCell = '<span style="color:' + msw.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + msw.sym + '</span>';
+          if(isRevealed){
+            var msw = _markSym(blindMarks.find(function(x){ return x.id === w; }) || {id: w});
+            winnerCell = '<span style="color:' + msw.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + msw.sym + '</span>';
+          } else {
+            winnerCell = '<span style="color:var(--ink3);font-weight:700">?</span>'; // 公開前は他者の[好]も隠す
+          }
         } else {
           winnerCell = '<span style="color:var(--ink3)">—</span>';
         }
