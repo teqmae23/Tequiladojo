@@ -1099,7 +1099,9 @@ function buildOrderDetail(visitId){
     if(!bmap[bid].repGid)bmap[bid].repGid=gid;
   });
 
-  const batches=Object.values(bmap).sort((a,b)=>(a.orderTime||'').localeCompare(b.orderTime||''));
+  // 営業時間は日跨ぎするため、単純な文字列比較ではなく「深夜(0〜5時)は+24時間」で時系列ソート
+  const _bizMin=t=>{t=String(t||'');const h=parseInt(t.slice(0,2),10);if(isNaN(h))return 999999;const m=parseInt(t.slice(2,4),10)||0;return(h<6?h+24:h)*60+m;};
+  const batches=Object.values(bmap).sort((a,b)=>_bizMin(a.orderTime)-_bizMin(b.orderTime));
 
   return batches.map(b=>buildBatchBlock(b,visitId)).join('');
 }
