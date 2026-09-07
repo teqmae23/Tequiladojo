@@ -535,7 +535,10 @@ async function loadEventBanners(){
     const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const fmt=s=>{ if(!s)return ''; const p=String(s).split('-'); return p.length===3?(p[0]+'/'+p[1]+'/'+p[2]):s; };
     box.innerHTML=evs.map(ev=>{
-      const url=(ev.topPageUrl&&ev.topPageUrl.trim())?ev.topPageUrl.trim():('/event.html?id='+encodeURIComponent(ev.id));
+      // 任意URL(topPageUrl)は「http(s)で始まる完全なURL」の時だけ採用。
+      // 「tddt2026」のような裸の文字列や相対パスは存在せず404になるため、必ず標準の /event.html?id=... に繋ぐ。
+      const _tp=(ev.topPageUrl||'').trim();
+      const url=/^https?:\/\/.+/i.test(_tp)?_tp:('/event.html?id='+encodeURIComponent(ev.id));
       const period=fmt(ev.startDate)+(ev.endDate&&ev.endDate!==ev.startDate?(' 〜 '+fmt(ev.endDate)):'');
       return `<a href="${esc(url)}" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:14px 16px;background:linear-gradient(135deg,#fdf3dc,#f4e8cf);border:1.5px solid var(--border2);border-radius:12px;text-decoration:none;color:var(--gold-d);box-shadow:0 2px 10px rgba(200,146,30,.12)">
         <span style="font-size:22px;flex-shrink:0">🎪</span>
