@@ -1606,7 +1606,12 @@ function openSsetModal(id){
       if(!brId||!clId){ var m=_b2m[bd.bottleId||(bd.id||"").slice(0,12)]; if(m){ brId=brId||m.brandId; clId=clId||m.classId; } }
       if(brId===bId && clId) used[clId]=true;
     });
-    var fl=Object.keys(used).map(function(cid){ var c=cache.classes.find(function(x){return x.id===cid;}); return {id:cid, name:(c&&c.classNameJa)||cid}; }).sort(function(a,b){return String(a.id).localeCompare(String(b.id));});
+    var fl=Object.keys(used).map(function(cid){
+      var c=cache.classes.find(function(x){return x.id===cid;});
+      var nm=(c&&c.classNameJa)||cid;
+      if(String(cid).charAt(0)==='1') nm+='（ミクスト）'; // クラスID先頭=1 はミクスト。同名(ブランコ等)の100%アガベと区別
+      return {id:cid, name:nm};
+    }).sort(function(a,b){return String(a.id).localeCompare(String(b.id));});
     clSel.innerHTML='<option value="">— クラスを選択 —</option>'+fl.map(function(c){return '<option value="'+c.id+'">'+escHtml(c.name)+'</option>';}).join("");
     clSel.disabled=false;
   });
