@@ -622,9 +622,19 @@ function accSection(type, icon, title, innerHtml, open){
 }
 function toggleAcc(type){
   var b=g('accbd-'+type), s=g('acc-'+type); if(!b) return;
-  var open=b.style.display!=='none';
-  b.style.display=open?'none':'';
-  if(s){ s.classList.toggle('open',!open); var c=s.querySelector('.acc-car'); if(c) c.textContent=open?'▸':'▾'; }
+  var willOpen=b.style.display==='none'; // 現在閉じている→これから開く
+  if(willOpen){
+    // 同時に開けるタブは1つだけ。既に開いている他のタブは閉じる。
+    Array.prototype.forEach.call(document.querySelectorAll('.acc.open'), function(sec){
+      if(sec.id==='acc-'+type) return;
+      var ob=g(sec.id.replace('acc-','accbd-'));
+      if(ob) ob.style.display='none';
+      sec.classList.remove('open');
+      var oc=sec.querySelector('.acc-car'); if(oc) oc.textContent='▸';
+    });
+  }
+  b.style.display=willOpen?'':'none';
+  if(s){ s.classList.toggle('open',willOpen); var c=s.querySelector('.acc-car'); if(c) c.textContent=willOpen?'▾':'▸'; }
 }
 function render(ev){
   _ev=ev;
