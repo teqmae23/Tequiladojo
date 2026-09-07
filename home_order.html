@@ -688,7 +688,7 @@ body.popup-mode .modal-panel{border-radius:0;max-width:100%;box-shadow:none;min-
 
 <div id="toast"></div>
 
-<script src="blind-result.js?v=20260907"></script>
+<script src="blind-result.js?v=20260907b"></script>
 
 <script>
 
@@ -1107,7 +1107,9 @@ function loadBlindInputStates(bids){
 function toggleBlindInput(bid,btn){
   var next=!blindInputOpenMap[bid];
   if(btn) btn.disabled=true;
-  db.collection('blindFlights').doc(bid).set({batchId:bid, inputOpen:next, inputOpenAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})
+  var _d={batchId:bid, inputOpen:next, inputOpenAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(next) _d.inputOpenedOnce=true; // 一度許可したら締切後も結果入力画面でマークを秘匿
+  db.collection('blindFlights').doc(bid).set(_d,{merge:true})
     .then(function(){ blindInputOpenMap[bid]=next; if(btn){ btn.disabled=false; btn.className='btn '+(next?'bs':'bp')+' sm'; btn.innerHTML=_bioLabel(next); } showToast(next?'ユーザー入力を許可しました':'入力を締め切りました','success'); })
     .catch(function(e){ if(btn) btn.disabled=false; showToast('失敗: '+((e&&e.message)||e),'error'); });
 }
