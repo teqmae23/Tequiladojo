@@ -1978,8 +1978,8 @@ function openTaskMgr(eventId){
   g('tk-list').innerHTML='<div class="ec">読み込み中…</div>';
   g('tk-mgr-modal').classList.add('open');
   _tkParticipants=[];
-  loadDocRoster(eventId).then(function(r){ _tkParticipants=r||[]; if(g('tk-ed-modal').classList.contains('open')) renderTkAud(); }).catch(function(){});
-  loadTasks();
+  // 完了人数(x/x)の分母に対象者数が必要なため、名簿を先に読み込んでからタスクを描画
+  loadDocRoster(eventId).then(function(r){ _tkParticipants=r||[]; if(g('tk-ed-modal').classList.contains('open')) renderTkAud(); loadTasks(); }).catch(function(){ loadTasks(); });
 }
 function closeTaskMgr(){ g('tk-mgr-modal').classList.remove('open'); }
 g('tk-mgr-modal').addEventListener('click',function(e){ if(e.target===g('tk-mgr-modal')) closeTaskMgr(); });
@@ -1987,15 +1987,43 @@ function loadTasks(){
   taskCol(_tkEventId).get().then(function(snap){
     _tkItems=snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); });
     _tkItems.sort(function(a,b){ return (a.seq||0)-(b.seq||0); });
-    renderTaskList();
+    renderTaskList(); // まず即描画（件数は完了状況取得後に反映）
+    // 各タスクの完了状況（completions）を取得して完了人数(x/x)を反映
+    Promise.all(_tkItems.map(function(t){
+      return taskCol(_tkEventId).doc(t.id).collection('completions').get()
+        .then(function(cs){ t._comps=cs.docs.map(function(d){ return Object.assign({id:d.id},d.data()); }); })
+        .catch(function(){ t._comps=[]; });
+    })).then(function(){ renderTaskList(); });
   }).catch(function(e){ g('tk-list').innerHTML='<div class="ec">読込失敗: '+esc(e.message)+'</div>'; });
+}
+// タスクの完了人数(done/total)を算出。進捗ありは最終段階=完了、なければ done フラグ。
+function _taskDoneCounts(t){
+  var st=(t.progressEnabled && Array.isArray(t.progressStates) && t.progressStates.length)?t.progressStates:null;
+  var lastId=st?(st[st.length-1].id):null;
+  var isDone=function(c){ return c?(lastId?(c.progress===lastId):!!c.done):false; };
+  var comps=t._comps||[]; var byUid={}; comps.forEach(function(c){ byUid[c.id]=c; });
+  var total=0, done=0;
+  if(t.audience==='selected'){
+    var ids=t.audienceIds||[]; total=ids.length;
+    ids.forEach(function(tid){
+      var p=_tkParticipants.find(function(x){ return x.tid===tid; });
+      var c=(p&&byUid[p.uid])||byUid[tid];
+      if(isDone(c)) done++;
+    });
+  }else{
+    total=_tkParticipants.length;
+    _tkParticipants.forEach(function(p){ var c=byUid[p.uid]||byUid[p.tid]; if(isDone(c)) done++; });
+  }
+  return {done:done, total:total};
 }
 function renderTaskList(){
   g('tk-cnt').textContent=_tkItems.length+'件';
   if(!_tkItems.length){ g('tk-list').innerHTML='<div class="ec">項目がありません。「＋ 項目追加」から登録してください。</div>'; return; }
   g('tk-list').innerHTML=_tkItems.map(function(t){
     var pub=(t.visibility!=='private');
-    var sub=[]; if(t.deadline) sub.push('期限 '+esc(t.deadline)); if(t.requireFile) sub.push('📎ファイル提出');
+    var cc=_taskDoneCounts(t);
+    var sub=['✅完了 '+cc.done+'/'+cc.total+'名'];
+    if(t.deadline) sub.push('期限 '+esc(t.deadline)); if(t.requireFile) sub.push('📎ファイル提出');
     if(t.requireMessage) sub.push('✍️メッセージ'+((t.msgMin||t.msgMax)?('('+(t.msgMin||0)+'〜'+(t.msgMax||'')+')'):''));
     if(t.progressEnabled && Array.isArray(t.progressStates) && t.progressStates.length) sub.push('📊進捗'+t.progressStates.length+'段階');
     if(t.audience==='selected') sub.push('👥対象'+((t.audienceIds||[]).length)+'名'+(t.showScope==='selected'?'（限定表示）':''));
