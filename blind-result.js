@@ -54,14 +54,11 @@ var BlindResult = (function(){
     + '</div>'
     + '<div id="result-body"></div>'
     + '<div class="result-action-bar" id="result-action-input">'
-    + '<button class="btn bs" id="btn-show-result" onclick="BlindResult.show()" style="flex:1">結果を見る</button>'
-    + '<button class="btn bs" id="btn-confirm-partial" onclick="BlindResult.confirmPartial()" style="flex:1">未入力のまま確定</button>'
-    + '<button class="btn bp" id="btn-save-result-hidden" style="flex:1" disabled>結果を保存する</button>'
+    + '<button class="btn bp" id="btn-show-result" onclick="BlindResult.confirmAndReveal()" style="flex:1">🎭 結果を確定・公開</button>'
     + '</div>'
     + '<div class="result-action-bar" id="result-action-revealed" style="display:none">'
-    + '<button class="btn bs" id="btn-back-to-input" onclick="BlindResult.backToInput()" style="flex:1">← 入力に戻る</button>'
-    + '<button class="btn bs" id="btn-confirm-partial-r" onclick="BlindResult.confirmPartial()" style="flex:1;display:none">未入力のまま確定</button>'
-    + '<button class="btn bp" id="btn-save-result" onclick="BlindResult.save()" style="flex:1" disabled>結果を保存する</button>'
+    + '<button class="btn bs" id="btn-back-to-input" onclick="BlindResult.backToInput()" style="flex:1">確定解除（非公開に戻す）</button>'
+    + '<button class="btn bp" id="btn-save-result" onclick="BlindResult.save()" style="flex:1">結果を保存する</button>'
     + '</div>'
     + '</div>'
     + '</div>';
@@ -302,24 +299,11 @@ var BlindResult = (function(){
   function _switchToRevealed(allConfirmed){
     _g('result-action-input').style.display = 'none';
     _g('result-action-revealed').style.display = 'flex';
+    var locked = !!(_state && _state.resultSaved); // 保存済み＝確定解除・保存不可（閲覧のみ）
     var backBtn = _g('btn-back-to-input');
-    if(backBtn) backBtn.style.display = _canEdit ? '' : 'none';
-    var s = _state;
-    var hasEmpty = s.members.some(function(_, mi){
-      return s.marks.some(function(_, mki){ return !s.answers[mi][mki]; });
-    });
+    if(backBtn) backBtn.style.display = (_canEdit && !locked) ? '' : 'none';
     var saveBtn = _g('btn-save-result');
-    var partialBtn = _g('btn-confirm-partial-r');
-    if(!_canEdit){
-      saveBtn.style.display = 'none';
-      partialBtn.style.display = 'none';
-    } else if(hasEmpty && !allConfirmed){
-      saveBtn.disabled = true;
-      partialBtn.style.display = 'flex';
-    } else {
-      saveBtn.disabled = false;
-      partialBtn.style.display = 'none';
-    }
+    if(saveBtn){ saveBtn.style.display = (_canEdit && !locked) ? '' : 'none'; saveBtn.disabled = false; }
     _updateTitle();
   }
 
@@ -569,9 +553,9 @@ var BlindResult = (function(){
       }
     }
     s.revealed = true;
-    s.allConfirmed = false;
+    s.allConfirmed = !!s.resultSaved;
     _renderTable();
-    _switchToRevealed(false);
+    _switchToRevealed(!!s.resultSaved);
   }
 
   // ── Public: confirm with partial (unconfirmed entries) ──
@@ -594,8 +578,44 @@ var BlindResult = (function(){
     _switchToRevealed(true);
   }
 
-  // ── Public: back to input (fixes bug: was 'partial', must be false so pickers show) ──
+  // ── Public: 結果を確定・公開（未入力があれば確認モーダル） ──
+  function confirmAndReveal(){
+    var s = _state; if(!s) return;
+    var blindMarks = _getBlindMarks();
+    // 重複チェック
+    for(var mi = 0; mi < s.members.length; mi++){
+      var name = _vLabel(s.members[mi].visitKey);
+      var chosen = s.answers[mi].filter(Boolean);
+      var dup = chosen.filter(function(m, i){ return chosen.indexOf(m) !== i; }).filter(function(m, i, a){ return a.indexOf(m) === i; });
+      if(dup.length > 0){
+        var dupSyms = dup.map(function(m){ return _markSym(blindMarks.find(function(x){ return x.id === m; }) || {id: m}).sym; }).join('・');
+        alert(name + 'に重複した回答があります（' + dupSyms + '）\n修正してください。');
+        return;
+      }
+    }
+    // 未入力チェック → 確認モーダル
+    var hasEmpty = s.members.some(function(_, mi){ return s.marks.some(function(_, mki){ return !s.answers[mi][mki]; }); });
+    if(hasEmpty && !confirm('未入力項目がありますが、よろしいですか？')) return;
+    // 全端末へ公開＋確定（編集不可）
+    var bid = _batchId();
+    if(bid && _db){
+      _db.collection('blindFlights').doc(bid).set({
+        batchId: bid, revealed: true, revealedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, {merge:true}).catch(function(e){ _showToast('公開に失敗: '+e.message, 'error'); });
+    }
+    s.revealed = true;
+    s.allConfirmed = true;
+    _renderTable();
+    _switchToRevealed(true);
+  }
+
+  // ── Public: 確定解除（未確定・非公開に戻す） ──
   function backToInput(){
+    if(_state && _state.resultSaved) return; // 保存済みは戻せない
+    var bid = _batchId();
+    if(bid && _db){
+      _db.collection('blindFlights').doc(bid).set({ batchId: bid, revealed: false }, {merge:true}).catch(function(){});
+    }
     _state.revealed = false;
     _state.allConfirmed = false;
     _renderTable();
@@ -674,6 +694,9 @@ var BlindResult = (function(){
           }
         }
       }
+      // 保存＝確定（以後変更不可）。blindFlights に resultSaved を立てる
+      var _bid = (b && (b.batchId || b.bid)) || null;
+      if(_bid){ fsBatch.set(_db.collection('blindFlights').doc(_bid), { batchId:_bid, revealed:true, resultSaved:true, resultSavedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true}); }
       await fsBatch.commit();
       if(typeof writeJournal === 'function'){
         _journalQueue.forEach(function(j){ writeJournal(j.op, j.col, j.id, j.before, j.after); });
@@ -717,9 +740,10 @@ var BlindResult = (function(){
         }
       }
     }catch(e){ if(window.console) console.warn('loadGuesses:', e); }
-    try{ var _fl = await _db.collection('blindFlights').doc(bid).get(); var _fd = _fl.exists ? (_fl.data()||{}) : {}; _state.inputOpen = !!_fd.inputOpen; _state.inputEverOpened = !!(_fd.inputOpen || _fd.inputOpenedOnce || _fd.inputOpenAt); }catch(e){}
+    try{ var _fl = await _db.collection('blindFlights').doc(bid).get(); var _fd = _fl.exists ? (_fl.data()||{}) : {}; _state.inputOpen = !!_fd.inputOpen; _state.inputEverOpened = !!(_fd.inputOpen || _fd.inputOpenedOnce || _fd.inputOpenAt); _state.resultSaved = !!_fd.resultSaved; if(_state.resultSaved){ _state.revealed = true; _state.allConfirmed = true; } }catch(e){}
     _renderTable();
     _renderGuessStatus();
+    if(_state && _state.resultSaved){ _switchToRevealed(true); } // 保存済みは閲覧のみ（確定解除・保存不可）
     return hadData;
   }
 
@@ -766,7 +790,6 @@ var BlindResult = (function(){
     panel.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px"><b>会員入力状況</b>'
       + '<button class="btn '+(inputOpen?'bs':'bp')+' sm" onclick="BlindResult.setInputOpen('+(inputOpen?'false':'true')+')" style="margin-left:auto">'+(inputOpen?'🔴 入力を締切':'🟢 ユーザー入力を許可')+'</button>'
-      + '<button class="btn bs sm" onclick="BlindResult.reveal()">🎭 結果を公開</button>'
       + '<button class="btn bs sm" onclick="BlindResult.unlockAll()">全員の確定解除</button></div>'
       + (inputOpen
           ? '<div style="color:#1a6640;font-size:11px;margin-bottom:4px">※ 会員参加者は各自のマイページで入力中です（この画面では「?」・入力不可）。スタッフ参加者はこの画面で入力し、下のボタンで確定してください。</div>'
@@ -831,6 +854,7 @@ var BlindResult = (function(){
     unlock: unlock,
     unlockAll: unlockAll,
     show: show,
+    confirmAndReveal: confirmAndReveal,
     backToInput: backToInput,
     confirmPartial: confirmPartial,
     save: save,
