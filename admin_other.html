@@ -1583,7 +1583,12 @@ function openSsetModal(id){
     var nom=this.value,brSel=g("ss-t-brand");
     [g("ss-t-class"),g("ss-t-bdata")].forEach(function(s){if(s){s.innerHTML='<option value="">—</option>';s.disabled=true;}});
     if(!nom){brSel.innerHTML='<option value="">—</option>';brSel.disabled=true;return;}
-    var fl=cache.brands.filter(function(b){return (b.id||"").slice(0,4)===nom;}).sort(function(a,b){return a.id.localeCompare(b.id);});
+    // 道場に在庫（bottleData）があるブランドのみ表示（在庫のないブランドは出さない）
+    var _b2brand={}; cache.bottles.forEach(function(bt){ _b2brand[bt.id]=bt.brandId; });
+    var _brandHasStock={};
+    cache.bottleData.forEach(function(bd){ var _br=_b2brand[bd.bottleId||(bd.id||"").slice(0,12)]; if(_br) _brandHasStock[_br]=true; });
+    var fl=cache.brands.filter(function(b){return (b.id||"").slice(0,4)===nom && _brandHasStock[b.id];}).sort(function(a,b){return a.id.localeCompare(b.id);});
+    if(!fl.length){brSel.innerHTML='<option value="">（在庫のあるブランドがありません）</option>';brSel.disabled=true;return;}
     brSel.innerHTML='<option value="">— ブランドを選択 —</option>'+fl.map(function(b){return '<option value="'+b.id+'">'+escHtml(b.brandEs||b.id)+'</option>';}).join("");
     brSel.disabled=false;
   });
