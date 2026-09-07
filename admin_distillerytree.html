@@ -383,12 +383,14 @@ document.getElementById('btn-logout').addEventListener('click',function(){ auth.
 var rawDis=[], rawBrands=[], rawBottles=[], rawBdata=[], rawAmmBottle=[];
 var keepSourceSet={}; // キープ元となっている bottleData の id 集合
 // BD（ボトルデータ）の状態: keep=キープ / ended=提供終了 / serving=提供中 / stock=在庫
+// 判定は status フィールド基準（admin_tequila と同一。未設定は既定で serving=提供中）。
 function _bdataState(r){
   if(!r) return 'stock';
   if(keepSourceSet[String(r.id)] || String(r.lotNo||'').toUpperCase()==='KEEP') return 'keep';
-  if(String(r.status||'')==='ended') return 'ended';
-  if(r.serveStart && !r.serveEnd) return 'serving'; // 提供開始済みで未終了＝提供中
-  return 'stock';
+  var st=String(r.status||'serving');
+  if(st==='ended') return 'ended';
+  if(st==='stock') return 'stock';
+  return 'serving'; // serving または未設定
 }
 var tree={};
 
