@@ -210,7 +210,7 @@ var BlindResult = (function(){
 
   // 店側の編集を blindGuesses に反映（会員のリアルタイム表へ即共有するため・追加のみ）。
   // 実バッチ(batchId)のみ対象。confirmed 等は触れず answers/winner を merge。
-  function _persistRowGuess(mi){
+  function _persistRowGuess(mi, confirmed){
     if(!_db || !_state || !_state.b || !_state.b.batchId) return;
     var bid = _state.b.batchId;
     var g = _state.members[mi]; if(!g) return;
@@ -224,7 +224,25 @@ var BlindResult = (function(){
       answers: answers, winner: _state.winners[mi] || null,
       source: 'staff', updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
+    if(confirmed === true){ data.confirmed = true; data.confirmedAt = firebase.firestore.FieldValue.serverTimestamp(); }
     _db.collection('blindGuesses').doc(data.id).set(data, {merge:true}).catch(function(){});
+  }
+
+  // スタッフ参加者の行か（会員入力許可中は、会員行は「?」＋入力不可、スタッフ行のみ入力可）
+  function _isStaffRow(g){
+    if(!g) return false;
+    var v = _getVisits().find(function(x){ return x.id === g.visitKey; });
+    if(v && v.isStaff) return true;
+    return (g.orders || []).some(function(o){ return o.isBlindStaff; });
+  }
+  // 会員入力を許可した状態での全員表（スタッフ結果入力画面）か
+  function _staffInputMode(){ return !!(_state && _state.inputOpen && !_state.lockedVisitKey); }
+  // スタッフ参加者の入力を確定（自分の結果の確定ボタン）
+  function confirmStaffInput(){
+    if(!_state) return;
+    var n = 0;
+    _state.members.forEach(function(g, mi){ if(_isStaffRow(g)){ _persistRowGuess(mi, true); n++; } });
+    _showToast(n ? 'スタッフの入力を確定しました' : 'スタッフ参加者がいません', n ? 'success' : 'error');
   }
 
   // ── Public: answer/winner setters (called from inline onclick) ──
@@ -328,8 +346,10 @@ var BlindResult = (function(){
       + '</tr></thead>';
 
     var lockedVk = s.lockedVisitKey || null;
+    var staffInputMode = !!s.inputOpen && !lockedVk; // 会員入力許可中の全員表: スタッフ行のみ編集
     var tbody = members.map(function(g, mi){
-      var isMyRow = !lockedVk || g.visitKey === lockedVk;
+      // 通常(許可前)は全員編集可。会員入力許可中はスタッフ参加者行のみ編集可（会員行は「?」）。ロック時は該当visitのみ。
+      var isMyRow = lockedVk ? (g.visitKey === lockedVk) : (staffInputMode ? _isStaffRow(g) : true);
       var cells = marks.map(function(m, mki){
         var chosen = answers[mi][mki];
         var cellClass = 'mark-cell';
@@ -682,7 +702,7 @@ var BlindResult = (function(){
     _db.collection('blindFlights').doc(bid).set({
       batchId: bid, inputOpen: !!open, inputOpenAt: firebase.firestore.FieldValue.serverTimestamp()
     }, {merge:true}).then(function(){
-      if(_state){ _state.inputOpen = !!open; _renderGuessStatus(); }
+      if(_state){ _state.inputOpen = !!open; _renderTable(); _renderGuessStatus(); }
       _showToast(open ? 'ユーザー入力を許可しました' : 'ユーザー入力を締め切りました', 'success');
     }).catch(function(e){ _showToast('更新失敗: '+e.message, 'error'); });
   }
@@ -710,13 +730,19 @@ var BlindResult = (function(){
         + '</span>';
     }).join('');
     var inputOpen = !!_state.inputOpen;
+    var hasStaffRow = _state.members.some(function(g){ return _isStaffRow(g); });
+    // 会員入力許可中は、スタッフ参加者が自分の入力を確定するボタンを画面下に1つ表示
+    var staffConfirmBtn = (inputOpen && hasStaffRow)
+      ? '<button class="btn bp sm" onclick="BlindResult.confirmStaffInput()" style="width:100%;margin-top:6px">✅ 自分（スタッフ）の入力を確定する</button>'
+      : '';
     panel.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px"><b>会員入力状況</b>'
       + '<button class="btn '+(inputOpen?'bs':'bp')+' sm" onclick="BlindResult.setInputOpen('+(inputOpen?'false':'true')+')" style="margin-left:auto">'+(inputOpen?'🔴 入力を締切':'🟢 ユーザー入力を許可')+'</button>'
       + '<button class="btn bs sm" onclick="BlindResult.reveal()">🎭 結果を公開</button>'
       + '<button class="btn bs sm" onclick="BlindResult.unlockAll()">全員の確定解除</button></div>'
-      + (inputOpen?'':'<div style="color:#a37b16;font-size:11px;margin-bottom:4px">※「ユーザー入力を許可」を押すまで、会員のマイページに結果入力ボタンは表示されません</div>')
-      + '<div>'+ (chips||'<span style="color:#aaa">参加者なし</span>') +'</div>';
+      + (inputOpen?'<div style="color:#1a6640;font-size:11px;margin-bottom:4px">※ 会員参加者は各自のマイページで入力中です（この画面では「?」・入力不可）。スタッフ参加者はこの画面で入力し、下のボタンで確定してください。</div>':'<div style="color:#a37b16;font-size:11px;margin-bottom:4px">※「ユーザー入力を許可」を押すまで、会員のマイページに結果入力ボタンは表示されません</div>')
+      + '<div>'+ (chips||'<span style="color:#aaa">参加者なし</span>') +'</div>'
+      + staffConfirmBtn;
     Array.prototype.forEach.call(panel.querySelectorAll('[data-unlock]'), function(b){
       b.addEventListener('click', function(){ unlock(this.getAttribute('data-unlock')); });
     });
@@ -768,6 +794,7 @@ var BlindResult = (function(){
     watchGuesses: watchGuesses,
     stopGuessWatch: stopGuessWatch,
     setInputOpen: setInputOpen,
+    confirmStaffInput: confirmStaffInput,
     reveal: reveal,
     unlock: unlock,
     unlockAll: unlockAll,
