@@ -102,13 +102,17 @@ var BlindResult = (function(){
     if(_panel){ _panel.remove(); _panel = null; }
   }
 
-  function _buildPicker(mi, mki, chosenMarkId){
+  function _buildPicker(mi, mki, chosenMarkId, hideMark){
     var blindMarks = _getBlindMarks();
     var pid = 'tp-' + mi + '-' + mki;
     var btnInner = '<span style="font-size:9px;color:var(--ink3)">選択</span>';
     if(chosenMarkId){
-      var ms = _markSym(blindMarks.find(function(m){ return m.id === chosenMarkId; }) || {id: chosenMarkId});
-      btnInner = '<span style="color:' + ms.color + ';font-weight:700;font-size:12px;letter-spacing:-1px;line-height:1">' + ms.sym + '</span>';
+      if(hideMark){
+        btnInner = '<span style="color:var(--ink3);font-weight:700;font-size:12px;line-height:1">?</span>';
+      } else {
+        var ms = _markSym(blindMarks.find(function(m){ return m.id === chosenMarkId; }) || {id: chosenMarkId});
+        btnInner = '<span style="color:' + ms.color + ';font-weight:700;font-size:12px;letter-spacing:-1px;line-height:1">' + ms.sym + '</span>';
+      }
     }
     return '<div class="tbl-mark-picker">'
       + '<div class="tbl-mark-btn' + (chosenMarkId ? ' selected' : '') + '" id="' + pid + '-btn"'
@@ -118,13 +122,17 @@ var BlindResult = (function(){
       + '</div>';
   }
 
-  function _buildWinnerPicker(mi, chosenMarkId){
+  function _buildWinnerPicker(mi, chosenMarkId, hideMark){
     var blindMarks = _getBlindMarks();
     var pid = 'tw-' + mi;
     var btnInner = '<span style="font-size:9px;color:var(--ink3)">好き</span>';
     if(chosenMarkId){
-      var ms = _markSym(blindMarks.find(function(m){ return m.id === chosenMarkId; }) || {id: chosenMarkId});
-      btnInner = '<span style="color:' + ms.color + ';font-weight:700;font-size:12px;letter-spacing:-1px;line-height:1">' + ms.sym + '</span>';
+      if(hideMark){
+        btnInner = '<span style="color:var(--ink3);font-weight:700;font-size:12px;line-height:1">?</span>';
+      } else {
+        var ms = _markSym(blindMarks.find(function(m){ return m.id === chosenMarkId; }) || {id: chosenMarkId});
+        btnInner = '<span style="color:' + ms.color + ';font-weight:700;font-size:12px;letter-spacing:-1px;line-height:1">' + ms.sym + '</span>';
+      }
     }
     return '<div class="tbl-mark-picker">'
       + '<div class="tbl-mark-btn' + (chosenMarkId ? ' selected' : '') + '" id="' + pid + '-btn"'
@@ -346,10 +354,21 @@ var BlindResult = (function(){
       + '</tr></thead>';
 
     var lockedVk = s.lockedVisitKey || null;
-    var staffInputMode = !!s.inputOpen && !lockedVk; // 会員入力許可中の全員表: スタッフ行のみ編集
+    var openNow = !!s.inputOpen && !lockedVk;              // 会員入力を許可中の全員表
+    var everOpened = !!s.inputEverOpened && !lockedVk;     // 一度でも許可した（締切後も含む）
     var tbody = members.map(function(g, mi){
-      // 通常(許可前)は全員編集可。会員入力許可中はスタッフ参加者行のみ編集可（会員行は「?」）。ロック時は該当visitのみ。
-      var isMyRow = lockedVk ? (g.visitKey === lockedVk) : (staffInputMode ? _isStaffRow(g) : true);
+      // 編集可否とマーク秘匿を状態で決定
+      //  ロック時: 該当visitのみ編集
+      //  許可中: 会員行は入力不可・「?」／スタッフ行のみ編集（自分のマーク表示）
+      //  締切後(一度許可済): 管理者は全行編集可・ただしマークは「?」で秘匿
+      //  許可前(準備中): 全員編集・マーク表示
+      var editable, hideMark;
+      if(lockedVk){ editable = (g.visitKey === lockedVk); hideMark = false; }
+      else if(openNow){ editable = _isStaffRow(g); hideMark = false; }
+      else if(everOpened){ editable = true; hideMark = true; }
+      else { editable = true; hideMark = false; }
+      if(isRevealed) hideMark = false; // 公開後はマーク表示
+      var isMyRow = editable;
       var cells = marks.map(function(m, mki){
         var chosen = answers[mi][mki];
         var cellClass = 'mark-cell';
@@ -367,7 +386,7 @@ var BlindResult = (function(){
             cellContent = '<span style="color:var(--ink3)">—</span>';
           }
         } else if(!isRevealed){
-          cellContent = _buildPicker(mi, mki, chosen);
+          cellContent = _buildPicker(mi, mki, chosen, hideMark);
         } else if(!colAllFilled[mki]){
           if(chosen){
             var ms3 = _markSym(blindMarks.find(function(x){ return x.id === chosen; }) || {id: chosen});
@@ -408,7 +427,7 @@ var BlindResult = (function(){
         var msw2 = _markSym(blindMarks.find(function(x){ return x.id === w; }) || {id: w});
         winnerCell = '<span style="color:' + msw2.color + ';font-weight:700;font-size:12px;letter-spacing:-1px">' + msw2.sym + '</span>';
       } else {
-        winnerCell = _buildWinnerPicker(mi, w);
+        winnerCell = _buildWinnerPicker(mi, w, hideMark);
       }
 
       var scoreCell = '—';
@@ -690,7 +709,7 @@ var BlindResult = (function(){
         }
       }
     }catch(e){ if(window.console) console.warn('loadGuesses:', e); }
-    try{ var _fl = await _db.collection('blindFlights').doc(bid).get(); _state.inputOpen = !!(_fl.exists && _fl.data().inputOpen); }catch(e){}
+    try{ var _fl = await _db.collection('blindFlights').doc(bid).get(); var _fd = _fl.exists ? (_fl.data()||{}) : {}; _state.inputOpen = !!_fd.inputOpen; _state.inputEverOpened = !!(_fd.inputOpen || _fd.inputOpenedOnce || _fd.inputOpenAt); }catch(e){}
     _renderTable();
     _renderGuessStatus();
     return hadData;
@@ -699,10 +718,10 @@ var BlindResult = (function(){
   // ユーザー(会員)入力の許可/締切をブロードキャスト。許可するまで会員側に入力ボタンは出ない。
   function setInputOpen(open){
     var bid = _batchId(); if(!bid || !_db) return;
-    _db.collection('blindFlights').doc(bid).set({
-      batchId: bid, inputOpen: !!open, inputOpenAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, {merge:true}).then(function(){
-      if(_state){ _state.inputOpen = !!open; _renderTable(); _renderGuessStatus(); }
+    var data = { batchId: bid, inputOpen: !!open, inputOpenAt: firebase.firestore.FieldValue.serverTimestamp() };
+    if(open) data.inputOpenedOnce = true; // 一度許可したら締切後もマークを秘匿するためのフラグ
+    _db.collection('blindFlights').doc(bid).set(data, {merge:true}).then(function(){
+      if(_state){ _state.inputOpen = !!open; if(open) _state.inputEverOpened = true; _renderTable(); _renderGuessStatus(); }
       _showToast(open ? 'ユーザー入力を許可しました' : 'ユーザー入力を締め切りました', 'success');
     }).catch(function(e){ _showToast('更新失敗: '+e.message, 'error'); });
   }
@@ -730,9 +749,10 @@ var BlindResult = (function(){
         + '</span>';
     }).join('');
     var inputOpen = !!_state.inputOpen;
+    var everOpened = !!_state.inputEverOpened;
     var hasStaffRow = _state.members.some(function(g){ return _isStaffRow(g); });
-    // 会員入力許可中は、スタッフ参加者が自分の入力を確定するボタンを画面下に1つ表示
-    var staffConfirmBtn = (inputOpen && hasStaffRow)
+    // 会員入力を許可した後は、スタッフ参加者が自分の入力を確定するボタンを画面下に1つ表示
+    var staffConfirmBtn = ((inputOpen || everOpened) && hasStaffRow)
       ? '<button class="btn bp sm" onclick="BlindResult.confirmStaffInput()" style="width:100%;margin-top:6px">✅ 自分（スタッフ）の入力を確定する</button>'
       : '';
     panel.innerHTML =
@@ -740,7 +760,11 @@ var BlindResult = (function(){
       + '<button class="btn '+(inputOpen?'bs':'bp')+' sm" onclick="BlindResult.setInputOpen('+(inputOpen?'false':'true')+')" style="margin-left:auto">'+(inputOpen?'🔴 入力を締切':'🟢 ユーザー入力を許可')+'</button>'
       + '<button class="btn bs sm" onclick="BlindResult.reveal()">🎭 結果を公開</button>'
       + '<button class="btn bs sm" onclick="BlindResult.unlockAll()">全員の確定解除</button></div>'
-      + (inputOpen?'<div style="color:#1a6640;font-size:11px;margin-bottom:4px">※ 会員参加者は各自のマイページで入力中です（この画面では「?」・入力不可）。スタッフ参加者はこの画面で入力し、下のボタンで確定してください。</div>':'<div style="color:#a37b16;font-size:11px;margin-bottom:4px">※「ユーザー入力を許可」を押すまで、会員のマイページに結果入力ボタンは表示されません</div>')
+      + (inputOpen
+          ? '<div style="color:#1a6640;font-size:11px;margin-bottom:4px">※ 会員参加者は各自のマイページで入力中です（この画面では「?」・入力不可）。スタッフ参加者はこの画面で入力し、下のボタンで確定してください。</div>'
+          : (everOpened
+              ? '<div style="color:#a37b16;font-size:11px;margin-bottom:4px">※ 入力は締め切りました。公開まで参加者のマークは「?」で伏せます（管理者はこの画面で入力・修正できます）。</div>'
+              : '<div style="color:#a37b16;font-size:11px;margin-bottom:4px">※「ユーザー入力を許可」を押すまで、会員のマイページに結果入力ボタンは表示されません</div>'))
       + '<div>'+ (chips||'<span style="color:#aaa">参加者なし</span>') +'</div>'
       + staffConfirmBtn;
     Array.prototype.forEach.call(panel.querySelectorAll('[data-unlock]'), function(b){
