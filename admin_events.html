@@ -1694,7 +1694,8 @@ function _roomHtml(bi, r, ri){
   return '<div class="rm-room">'
     +'<div class="rm-room-hd">'
     +'<input class="fi rm-roomname" value="'+esc(r.name||'')+'" placeholder="部屋名（例: 501号室）" oninput="roomSet('+bi+','+ri+',this.value)" onfocus="_photoBi='+bi+';_photoRi='+ri+'">'
-    +'<button type="button" class="rm-photobtn" title="部屋の写真（選択／貼り付け）" onclick="roomPhotoPick('+bi+','+ri+')">📷 写真（選択/貼付）</button>'
+    +'<button type="button" class="rm-photobtn" title="部屋の写真を選択" onclick="roomPhotoPick('+bi+','+ri+')">📷 写真</button>'
+    +'<button type="button" class="rm-photobtn" title="クリップボードから貼り付け" onclick="roomPhotoPaste('+bi+','+ri+')">📋 ペースト</button>'
     +'<button type="button" class="rm-x" title="部屋を削除" onclick="roomDel('+bi+','+ri+')">🗑</button></div>'
     +(photos?'<div class="rm-thumbs">'+photos+'</div>':'')
     +'<div class="rm-beds">'+beds+'</div>'
@@ -1709,7 +1710,8 @@ function renderRooms(){
       var bphotos=(b.photos||[]).map(function(p,k){ return '<div class="rm-thumb"><img src="'+esc(p.url)+'" alt=""><button type="button" class="rm-thx" onclick="roomPhotoDel('+bi+',-1,'+k+')">×</button></div>'; }).join('');
       return '<div class="rm-bld">'
         +'<div class="rm-bld-hd"><span class="rm-bld-ic">🏠</span><input class="fi rm-bldname" value="'+esc(b.name||'')+'" placeholder="建物名（例: A棟・母屋）" oninput="buildingSet('+bi+',this.value)" onfocus="_photoBi='+bi+';_photoRi=-1">'
-        +'<button type="button" class="rm-photobtn" title="建物の写真（選択／貼り付け）" onclick="roomPhotoPick('+bi+',-1)">📷 写真（選択/貼付）</button>'
+        +'<button type="button" class="rm-photobtn" title="建物の写真を選択" onclick="roomPhotoPick('+bi+',-1)">📷 写真</button>'
+        +'<button type="button" class="rm-photobtn" title="クリップボードから貼り付け" onclick="roomPhotoPaste('+bi+',-1)">📋 ペースト</button>'
         +'<button type="button" class="rm-x" title="建物を削除" onclick="buildingDel('+bi+')">🗑</button></div>'
         +(bphotos?'<div class="rm-thumbs">'+bphotos+'</div>':'')
         +rooms
@@ -1754,6 +1756,21 @@ function compressImage(file, maxDim, quality){
 // ri>=0: 部屋、ri<0: 建物 の写真ホルダー
 function _photoHolder(bi,ri){ return (ri>=0)?_room(bi,ri):_buildings[bi]; }
 function roomPhotoPick(bi,ri){ _photoBi=bi; _photoRi=ri; var inp=g('rm-photo-input'); if(inp){ inp.value=''; inp.click(); } }
+// クリップボードから画像を貼り付け（ボタン用・タッチ端末対応）
+function roomPhotoPaste(bi,ri){
+  _photoBi=bi; _photoRi=ri;
+  if(!_photoHolder(bi,ri)){ toast('貼り付け先が見つかりません','err'); return; }
+  if(!(navigator.clipboard && navigator.clipboard.read)){ toast('この端末はボタン貼り付けに未対応です。画像をコピーして Ctrl+V で貼り付けてください','err'); return; }
+  navigator.clipboard.read().then(function(items){
+    for(var i=0;i<items.length;i++){
+      var types=items[i].types||[];
+      var imgType=null;
+      for(var j=0;j<types.length;j++){ if(types[j].indexOf('image')===0){ imgType=types[j]; break; } }
+      if(imgType){ items[i].getType(imgType).then(function(blob){ _roomUploadFile(bi, ri, blob); }); return; }
+    }
+    toast('クリップボードに画像がありません。画像をコピーしてから押してください','err');
+  }).catch(function(){ toast('貼り付けできませんでした（ブラウザで許可が必要な場合があります）','err'); });
+}
 function roomPhotoUpload(inp){ _roomUploadFile(_photoBi,_photoRi,(inp.files&&inp.files[0])||null); }
 function _roomUploadFile(bi, ri, f){
   var h=_photoHolder(bi,ri);
