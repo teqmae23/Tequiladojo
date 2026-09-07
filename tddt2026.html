@@ -2121,6 +2121,9 @@ var _surveys={}, _myResp={}, _ans={}, _resCache={}, _svComment={};
 function svCol(){ return db.collection('events').doc(eventId).collection('surveys'); }
 function canSeeResults(s){
   var v=s.resultVisibility||'staff';
+  // 「公開しない（スタッフのみ集計）」＝非公開: 結果は管理画面のみで表示し、
+  // マイページ/イベントページでは（スタッフであっても）表示しない。
+  if(v==='staff') return false;
   return _isStaff || v==='all' || (v==='respondents' && !!_myResp[s.id]);
 }
 function loadSurveys(eventPublished){
