@@ -1140,8 +1140,10 @@ function buildBatchBlock(b,visitId){
 
   // ブラインドリンク
   // 店側が「ユーザー入力を許可」するまで（blindFlights.inputOpen）結果入力ボタンは出さない
+  // また、結果が確定（公開 revealed）したら結果入力ボタンは消す（表示のみ）
   const _inputAllowed=!!((blindFlightMap[b.batchId]||{}).inputOpen);
-  const blindInputBtn=(isBlind&&b.batchId&&_inputAllowed)
+  const _revealed=!!((blindFlightMap[b.batchId]||{}).revealed);
+  const blindInputBtn=(isBlind&&b.batchId&&_inputAllowed&&!_revealed)
     ?`<span class="og-badge" style="background:#e7f0ff;color:#0c447c;cursor:pointer;font-size:11px" onclick="event.stopPropagation();openBlindInput('${esc(b.batchId)}','${esc(visitId)}','${esc(b.repGid||b.groups[0])}')" title="ブラインドの結果を入力">🎭 結果入力</span>`
     :'';
   const blindLink=isBlind
