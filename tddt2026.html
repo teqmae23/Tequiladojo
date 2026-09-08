@@ -82,6 +82,7 @@ a{color:var(--gold-d)}
 .sch-row .t{color:var(--ink);font-family:var(--mono)}
 .desc{font-size:14px;line-height:1.8;color:var(--ink);white-space:pre-wrap}
 .ov-div{border:none;border-top:1px solid var(--border);margin:10px 0}
+.intl-title{font-size:15px;font-weight:700;color:var(--ink);margin:2px 0 8px}
 .fx-clocks{margin:2px 0 8px}
 .clk-title{font-size:12px;font-weight:700;color:var(--ink3);margin-bottom:6px}
 .clk-note{font-size:10px;font-weight:400;color:var(--ink3)}
@@ -842,7 +843,7 @@ function overviewHtml(ev, period){
   if(ev.description) secs.push('<div class="kv kv-big"><div class="k">詳細</div><div class="v" style="font-weight:400;white-space:pre-wrap;line-height:1.7">'+esc(ev.description)+'</div></div>');
   var _clocks=(Array.isArray(ev.worldClocks)?ev.worldClocks:[]);
   var _fx=(Array.isArray(ev.fxPairs)?ev.fxPairs.filter(function(p){return p&&p.base&&p.quote;}):[]);
-  if(_clocks.length || _fx.length) secs.push('<div id="fx-clocks" class="fx-clocks"></div><div id="fx-charts" class="fx-charts"></div>');
+  if(_clocks.length || _fx.length) secs.push('<div class="intl-title">現地情報</div><div id="fx-clocks" class="fx-clocks"></div><div id="fx-charts" class="fx-charts"></div>');
   var h='<div class="card"><div class="sec">開催概要</div>';
   h+=secs.join('<hr class="ov-div">');
   h+='<hr class="ov-div">';
