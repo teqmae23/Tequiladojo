@@ -137,6 +137,7 @@ a{color:var(--gold-d)}
 .pf-me .pf-nm::after{content:'（あなた）';font-size:11px;color:var(--gold-d);font-weight:600;margin-left:5px}
 .pf-bio{font-size:12.5px;color:var(--ink2);line-height:1.65;margin-top:4px;white-space:pre-wrap;word-break:break-word}
 .pf-empty{font-size:12px;color:var(--ink3)}
+.pf-hosthd{font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.06em;margin:10px 0 2px;border-top:1px solid var(--border2);padding-top:12px}
 .pf-edit{margin-top:6px}
 .mpbtn{background:var(--gold-d);color:var(--cream);border:none;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
 .mp-fee-box{background:#fff7e6;border:1px solid var(--gold);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:14px;color:var(--ink)}
@@ -686,12 +687,12 @@ function overviewHtml(ev, period){
       +sched.map(function(s){ return '<div class="sch-row"><span class="d">'+esc(fmtDate(s.date))+' '+wday(s.date)+'</span><span class="t">'+esc(_hoursText(s))+'</span></div>'; }).join('')
       +'</div></div>';
   }
-  if(ev.location) h+='<div class="kv kv-big"><div class="k">場所</div><div class="v" style="font-weight:700;font-size:16px">'+esc(ev.location)+'</div></div>';
+  if(ev.location) h+='<div class="kv kv-big"><div class="k">場所</div><div class="v">'+esc(ev.location)+'</div></div>';
+  if(ev.description) h+='<div class="kv kv-big"><div class="k">詳細</div><div class="v" style="font-weight:400;white-space:pre-wrap;line-height:1.7">'+esc(ev.description)+'</div></div>';
   h+='<div class="kv kv-big"><div class="k" style="white-space:nowrap">参加者 <button class="hours-btn" style="border-color:var(--gold-d);color:var(--gold-d)" onclick="openProfiles()">👥 プロフィール</button></div><div class="v" id="mypage-note"></div></div>';
   h+='<div class="pt-grid" id="roster" style="margin-top:8px"><div style="font-size:12px;color:var(--ink3)">読み込み中…</div></div>';
   h+='<div class="pt-actions" id="mypage-actions"></div>';
   h+='</div>';
-  if(ev.description){ h+='<div class="card"><div class="sec">詳細</div><div class="desc">'+esc(ev.description)+'</div></div>'; }
   return h;
 }
 
@@ -751,7 +752,7 @@ function renderRoster(){
     html+='<div class="pt-hostsep"></div><div class="pt-hosttitle">現地ホスト</div>'
       + hosts.map(function(h){
           var hp={iconUrl:h.iconUrl||'', nickname:h.name||'現地ホスト'};
-          return '<div class="pt-card pt-host">'+ptAvatar(hp)+'<div class="pt-tx"><div class="pt-nm">'+esc(h.name||'現地ホスト')+'</div>'+(h.bio?'<div class="pt-bio">'+esc(h.bio)+'</div>':'')+'</div></div>';
+          return '<div class="pt-card pt-host">'+ptAvatar(hp)+'<div class="pt-tx"><div class="pt-nm">'+esc(h.name||'現地ホスト')+'</div></div></div>';
         }).join('');
   }
   r.innerHTML=html;
@@ -938,8 +939,9 @@ function _profFor(p){ return _profiles[p.id] || (p.memberId?_profiles['mid:'+p.m
 function _isMe(p){ return (!!_uid && p.id===_uid) || (!!_memberId && !!p.memberId && String(p.memberId)===String(_memberId)); }
 function renderProfiles(){
   var el=g('prof-list'); if(!el) return;
-  if(!_participants.length){ el.innerHTML='<div class="pf-empty">まだ参加者がいません。</div>'; return; }
-  el.innerHTML=_participants.map(function(p){
+  var hosts=(_ev&&Array.isArray(_ev.localHosts))?_ev.localHosts:[];
+  if(!_participants.length && !hosts.length){ el.innerHTML='<div class="pf-empty">まだ参加者がいません。</div>'; return; }
+  var html=_participants.map(function(p){
     var pr=_profFor(p)||{};
     var bio=(pr.bio||p.bio||'').trim();
     var icon=pr.iconUrl||p.iconUrl||'';
@@ -951,6 +953,16 @@ function renderProfiles(){
     if(me && _isReal) body+='<div class="pf-edit"><button class="hours-btn" style="border-color:var(--gold-d);color:var(--gold-d)" onclick="openProfileEdit()">✏️ 編集</button></div>';
     return '<div class="pf-item'+(me?' pf-me':'')+'">'+av+'<div class="pf-body">'+body+'</div></div>';
   }).join('');
+  if(hosts.length){
+    html+='<div class="pf-hosthd">現地ホスト</div>'
+      + hosts.map(function(h){
+          var icon=h.iconUrl||'', nick=h.name||'現地ホスト', bio=(h.bio||'').trim();
+          var av=icon?('<img class="pf-av" src="'+esc(icon)+'" alt="">'):('<span class="pf-av">'+esc(initials(nick))+'</span>');
+          var body='<div class="pf-nm">'+esc(nick)+'</div>'+(bio?('<div class="pf-bio">'+esc(bio)+'</div>'):'<div class="pf-empty">—</div>');
+          return '<div class="pf-item">'+av+'<div class="pf-body">'+body+'</div></div>';
+        }).join('');
+  }
+  el.innerHTML=html;
 }
 function openProfileEdit(){
   if(!_isReal){ toast('会員ログインが必要です'); return; }
