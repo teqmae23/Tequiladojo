@@ -125,8 +125,9 @@ a{color:var(--gold-d)}
 .pt-bio{font-size:11px;color:var(--ink3);line-height:1.4;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pt-me{border-color:var(--gold);background:#fffaf0}
 .pt-hostsep{flex:0 0 100%;height:0;border-top:1px solid var(--border2);margin:8px 0 0}
-.pt-hosttitle{flex:0 0 100%;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.06em;margin:2px 0 2px}
-.pt-host{border-color:#bfe0d6;background:#f2f8f6}
+.pt-hosttitle{flex:0 0 100%;font-size:14px;font-weight:700;color:var(--ink2);margin:2px 0 4px}
+.fam-sec{margin-top:10px;border-top:1px solid var(--border2);padding-top:8px}
+.fam-sec-hd{font-size:14px;font-weight:700;color:var(--ink2);margin-bottom:6px}
 /* 参加者プロフィール一覧 */
 .pf-item{display:flex;align-items:flex-start;gap:11px;padding:12px 2px;border-bottom:1px solid var(--border)}
 .pf-item:last-child{border-bottom:none}
@@ -670,6 +671,7 @@ function render(ev){
   g('wrap').innerHTML=html;
   document.title=(ev.name||'イベント')+' — テキーラ道場';
   loadParticipants();
+  loadFamViewers();
   if(hasSchedule) loadSchedule();
   if(hasChecklist) loadChecklist();
   if(hasDocs) loadDocuments();
@@ -691,6 +693,7 @@ function overviewHtml(ev, period){
   if(ev.description) h+='<div class="kv kv-big"><div class="k">詳細</div><div class="v" style="font-weight:400;white-space:pre-wrap;line-height:1.7">'+esc(ev.description)+'</div></div>';
   h+='<div class="kv kv-big"><div class="k" style="white-space:nowrap">参加者 <button class="hours-btn" style="border-color:var(--gold-d);color:var(--gold-d)" onclick="openProfiles()">👥 プロフィール</button></div><div class="v" id="mypage-note"></div></div>';
   h+='<div class="pt-grid" id="roster" style="margin-top:8px"><div style="font-size:12px;color:var(--ink3)">読み込み中…</div></div>';
+  h+='<div id="fam-section"></div>';
   h+='<div class="pt-actions" id="mypage-actions"></div>';
   h+='</div>';
   return h;
@@ -731,7 +734,7 @@ function _ptDone(snap){
       }
     }
   }
-  renderRoster(); renderMypageBar(); if(g('checklist-cont')&&_tasks.length) renderChecklist();
+  renderRoster(); renderMypageBar(); renderFamSection(); if(g('checklist-cont')&&_tasks.length) renderChecklist();
   // 参加者名簿が揃ったら、既に描画済みのスケジュールの参加メンバーを再計算して反映
   if(_schedItems.length){ var sc=g('schedule-cont'); if(sc&&sc.innerHTML) renderSchedule(_schedItems); }
 }
@@ -775,10 +778,33 @@ function renderMypageBar(){
   } else note='<span style="font-size:12px;color:var(--ink3)">会員ログインで参加登録できます</span>';
   // ③ 参加者が他の会員を参加に招待
   if(_isReal && ev.joinInviteEnabled && _isParticipant && !(_myPt&&_myPt.status==='pending')) acts.push('<button class="mpbtn" onclick="inviteParticipant()">＋ 会員を招待</button>');
-  // ③(閲覧) 参加者が家族を閲覧に招待（クローズイベント・承認済み参加者のみ）
-  if(_isReal && ev.eventType!=='open' && _isParticipant && !(_myPt&&_myPt.status==='pending')) acts.push('<button class="mpbtn" style="background:var(--teal)" onclick="inviteFamily()">👨‍👩‍👧 家族を閲覧に招待</button>');
+  // ③(閲覧) 家族を閲覧に招待するボタンは「家族閲覧者」欄（renderFamSection）へ移動
   if(noteEl) noteEl.innerHTML=note;
   if(actEl) actEl.innerHTML=acts.join('');
+}
+// ③(閲覧) 家族閲覧者 欄（現地ホストの下）: 承認済みの家族閲覧者を表示し、招待ボタンを内包
+var _famViewers=[];
+function loadFamViewers(){
+  if(!_isReal){ renderFamSection(); return; }
+  db.collection('events').doc(eventId).collection('familyInvites').get().then(function(snap){
+    _famViewers=snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); }).filter(function(iv){ return iv.status==='approved'; });
+    renderFamSection();
+  }).catch(function(){ _famViewers=[]; renderFamSection(); });
+}
+function renderFamSection(){
+  var el=g('fam-section'); if(!el) return;
+  var ev=_ev||{};
+  var canInvite=_isReal && ev.eventType!=='open' && _isParticipant && !(_myPt&&_myPt.status==='pending');
+  if(!_famViewers.length && !canInvite){ el.innerHTML=''; return; }
+  var chips=_famViewers.map(function(iv){
+    var nm=iv.memberName||iv.memberId||'（会員）';
+    return '<div class="pt-card"><span class="pt-av">'+esc((nm||'？').slice(0,1))+'</span><div class="pt-tx"><div class="pt-nm">'+esc(nm)+'</div></div></div>';
+  }).join('');
+  var html='<div class="fam-sec"><div class="fam-sec-hd">家族閲覧者</div>'
+    +'<div class="pt-grid">'+(chips||'<div style="font-size:12px;color:var(--ink3)">まだ家族閲覧者はいません。</div>')+'</div>';
+  if(canInvite) html+='<div style="margin-top:8px"><button class="mpbtn" style="background:var(--teal)" onclick="inviteFamily()">👨‍👩‍👧 家族を閲覧に招待</button></div>';
+  html+='</div>';
+  el.innerHTML=html;
 }
 // ③(閲覧) 家族の会員IDを推薦（管理者承認後にリアルタイム閲覧可＝参加者と同内容）
 var _famPendingIds={}, _FAM_ST={approved:'承認済',pending:'承認待',rejected:'招待却下'};
