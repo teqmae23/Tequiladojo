@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <script src="/auth-role.js?v=20260829"></script>
 
 <!-- ★★★ ここだけ書き換えてください ★★★ -->
@@ -2888,16 +2889,11 @@ function autoPublishCalForMonth(yymmdd,statusMsg){
   });
 }
 
-// ── 🌐 HTML公開ボタン ─────────────────────────────────────────
+// ── 🌐 HTML公開ボタン（Cloud Function経由・トークンはサーバー保存で再入力不要） ──
 (function(){
   var _pb=g('cal-publish'); if(!_pb) return;
+  function _pubFn(){ return firebase.app().functions('asia-northeast1').httpsCallable('publishCalendar'); }
   _pb.addEventListener('click',function(){
-    if(!GH_TOKEN){
-      var t=prompt('GitHub Personal Access Token を入力してください（ghp_...）');
-      if(!t){return;}
-      GH_TOKEN=t.trim();
-      localStorage.setItem('gh_token',GH_TOKEN);
-    }
     var y=calCur.y,m2=calCur.m;
     var status=g('cal-publish-status'); if(!status) return;
     status.style.display=''; status.style.color='var(--ink3)'; status.textContent='データ取得中...';
@@ -2921,26 +2917,30 @@ function autoPublishCalForMonth(yymmdd,statusMsg){
           status.style.color='var(--red)'; return;
         }
         if(!calHtml||calHtml.length<100){status.textContent='❌ HTML生成失敗（空）';status.style.color='var(--red)';return;}
-        status.textContent='アップロード中... (cal:'+Math.round(calHtml.length/1024)+'KB, list:'+Math.round(listHtml.length/1024)+'KB)';
         var calPath='calendar/'+ym+'calendar.html';
         var listPath='calendar/'+ym+'listcal.html';
-        deployToGitHub([
-          {path:calPath,content:calHtml},
-          {path:listPath,content:listHtml}
-        ],status).then(function(){
+        var files=[{path:calPath,content:calHtml},{path:listPath,content:listHtml}];
+        var onOk=function(){
           status.textContent='✅ 公開完了！ https://www.tequiladojo.com/'+calPath;
           status.style.color='var(--teal)';
-          calSavePublishTime(ym);
-          calCheckUnpublished(calGetYm());
+          calSavePublishTime(ym); calCheckUnpublished(calGetYm());
           toast('カレンダーを公開しました（'+ym+'）');
-        }).catch(function(e){
-          if(e.message.indexOf('401')>=0){
-            localStorage.removeItem('gh_token'); GH_TOKEN='';
-            status.textContent='❌ Token無効。次回公開時に再入力してください。';
+        };
+        var call=function(token){
+          status.textContent='アップロード中... (cal:'+Math.round(calHtml.length/1024)+'KB, list:'+Math.round(listHtml.length/1024)+'KB)';
+          var payload={files:files}; if(token) payload.token=token;
+          return _pubFn()(payload);
+        };
+        // トークンはサーバー(Firestore)に保存済みなら不要。未設定/無効のときだけ初回入力を求める。
+        call(null).then(onOk).catch(function(e){
+          var code=(e&&e.code)||'';
+          if(code==='functions/failed-precondition'||code==='functions/unauthenticated'){
+            var t=prompt('GitHub Personal Access Token を入力してください\n（初回のみ・以後はサーバーに保存され再入力不要）（ghp_...）');
+            if(!t){ status.textContent='キャンセルしました'; status.style.color='var(--ink3)'; return; }
+            call(t.trim()).then(onOk).catch(function(e2){ status.textContent='❌ エラー: '+((e2&&e2.message)||(e2&&e2.code)||e2); status.style.color='var(--red)'; });
           } else {
-            status.textContent='❌ エラー: '+e.message;
+            status.textContent='❌ エラー: '+((e&&e.message)||code||e); status.style.color='var(--red)';
           }
-          status.style.color='var(--red)';
         });
       });
     });

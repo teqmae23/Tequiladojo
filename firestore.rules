@@ -514,6 +514,9 @@ service cloud.firestore {
     match /ammBottleDetails/{id}      { allow read: if signedIn(); allow write: if isOwner(); }
     match /ammRankingHistory/{id}     { allow read: if signedIn(); allow write: if isOwner(); }
 
+    // GitHub等の秘密情報: クライアントからは一切アクセス不可（Cloud Functionのみ・admin SDKで読み書き）
+    match /appConfig/{id} { allow read, write: if false; }
+
     // ── その他（miscKinds, otherCat*, badgeTypes, calMeta, crt*,
     //    crtCountryMap, adminOps など管理ページ専用）: オーナーのみ ──
     match /{document=**} {
