@@ -313,6 +313,17 @@ textarea.fi{min-height:90px;resize:vertical;line-height:1.6}
       <div class="fg"><label class="fl">開催場所</label><input class="fi" id="f-loc" placeholder="例: テキーラ道場 本店"></div>
       <div class="fg"><label class="fl">詳細</label><textarea class="fi" id="f-desc" placeholder="イベントの説明・内容など"></textarea></div>
       <div class="fg"><label class="fl">イベントTOPページ（短縮URL・任意）</label><input class="fi" id="f-top" placeholder="例: tddt2026 → tequiladojo.com/tddt2026 で開ける（空欄可 / https://… も可）"></div>
+      <div class="fg"><label class="fl">現地時間（世界時計）</label>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">日本時間(JST)は常に表示されます。追加で最大5都市を選べます（詳細と参加者の間に表示）。</div>
+        <div class="row2"><select class="fi" id="f-clock1"></select><select class="fi" id="f-clock2"></select></div>
+        <div class="row2" style="margin-top:6px"><select class="fi" id="f-clock3"></select><select class="fi" id="f-clock4"></select></div>
+        <div class="row2" style="margin-top:6px"><select class="fi" id="f-clock5"></select><div></div></div>
+      </div>
+      <div class="fg"><label class="fl">為替レートチャート（最大2組・過去2か月〜現在／5分ごと更新）</label>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">2つの通貨を選ぶとチャートを表示します。空欄なら非表示。</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><select class="fi" id="f-fx1-base" style="flex:1"></select><span>→</span><select class="fi" id="f-fx1-quote" style="flex:1"></select></div>
+        <div style="display:flex;align-items:center;gap:6px"><select class="fi" id="f-fx2-base" style="flex:1"></select><span>→</span><select class="fi" id="f-fx2-quote" style="flex:1"></select></div>
+      </div>
       <div class="fg">
         <label class="fl">参加者（招待）</label>
         <div id="p-chips"></div>
@@ -972,10 +983,52 @@ function loadRegCount(id){
     .then(function(snap){ g('p-reg-count').textContent='（自己登録済み '+snap.size+'名）'; }).catch(function(){});
 }
 
+// ── 世界時計・為替レート 設定 ──
+var FX_CCYS=['JPY','USD','EUR','MXN','GBP','AUD','CAD','CHF','CNY','HKD','KRW','SGD','THB','NZD','BRL','ZAR'];
+var WORLD_CITIES=[
+  {city:'東京', tz:'Asia/Tokyo'},{city:'サンフランシスコ', tz:'America/Los_Angeles'},{city:'ロサンゼルス', tz:'America/Los_Angeles'},
+  {city:'メキシコシティ', tz:'America/Mexico_City'},{city:'グアダラハラ', tz:'America/Mexico_City'},{city:'ニューヨーク', tz:'America/New_York'},
+  {city:'ホノルル', tz:'Pacific/Honolulu'},{city:'ロンドン', tz:'Europe/London'},{city:'パリ', tz:'Europe/Paris'},
+  {city:'シンガポール', tz:'Asia/Singapore'},{city:'香港', tz:'Asia/Hong_Kong'},{city:'ソウル', tz:'Asia/Seoul'},
+  {city:'台北', tz:'Asia/Taipei'},{city:'バンコク', tz:'Asia/Bangkok'},{city:'ドバイ', tz:'Asia/Dubai'},{city:'シドニー', tz:'Australia/Sydney'}
+];
+function _fillEventLists(ev){
+  var clkOpts='<option value="">（なし）</option>'+WORLD_CITIES.map(function(c){ return '<option value="'+esc(c.tz)+'" data-city="'+esc(c.city)+'">'+esc(c.city)+'</option>'; }).join('');
+  var ccyOpts='<option value="">（なし）</option>'+FX_CCYS.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
+  ['f-clock1','f-clock2','f-clock3','f-clock4','f-clock5'].forEach(function(id){ g(id).innerHTML=clkOpts; });
+  ['f-fx1-base','f-fx1-quote','f-fx2-base','f-fx2-quote'].forEach(function(id){ g(id).innerHTML=ccyOpts; });
+  var clocks=(ev&&Array.isArray(ev.worldClocks))?ev.worldClocks:[];
+  ['f-clock1','f-clock2','f-clock3','f-clock4','f-clock5'].forEach(function(id,i){
+    var c=clocks[i]; if(!c) { g(id).value=''; return; }
+    // tzが同じ複数都市があるため、cityも一致するoptionを優先選択
+    var sel=g(id), opts=sel.options, done=false;
+    for(var k=0;k<opts.length;k++){ if(opts[k].value===c.tz && opts[k].getAttribute('data-city')===c.city){ sel.selectedIndex=k; done=true; break; } }
+    if(!done) sel.value=c.tz||'';
+  });
+  var fx=(ev&&Array.isArray(ev.fxPairs))?ev.fxPairs:[];
+  g('f-fx1-base').value=(fx[0]&&fx[0].base)||''; g('f-fx1-quote').value=(fx[0]&&fx[0].quote)||'';
+  g('f-fx2-base').value=(fx[1]&&fx[1].base)||''; g('f-fx2-quote').value=(fx[1]&&fx[1].quote)||'';
+}
+function _readWorldClocks(){
+  var out=[];
+  ['f-clock1','f-clock2','f-clock3','f-clock4','f-clock5'].forEach(function(id){
+    var sel=g(id); if(!sel||!sel.value) return;
+    var opt=sel.options[sel.selectedIndex];
+    out.push({ city:(opt&&opt.getAttribute('data-city'))||opt.text||sel.value, tz:sel.value });
+  });
+  return out;
+}
+function _readFxPairs(){
+  var out=[];
+  if(g('f-fx1-base').value && g('f-fx1-quote').value) out.push({base:g('f-fx1-base').value, quote:g('f-fx1-quote').value});
+  if(g('f-fx2-base').value && g('f-fx2-quote').value) out.push({base:g('f-fx2-base').value, quote:g('f-fx2-quote').value});
+  return out;
+}
 // ── モーダル ──
 function openEvent(id){
   _editId=id; g('ev-err').textContent='';
   var ev=id?events.find(function(x){return x.id===id;}):null;
+  _fillEventLists(ev);
   g('ev-mt').textContent=id?'イベント編集':'イベント登録';
   g('ev-del').style.display=id?'inline-block':'none';
   g('f-name').value=ev?(ev.name||''):'';
@@ -1137,6 +1190,7 @@ function saveEvent(){
     name:name, startDate:start, endDate:end,
     schedule:schedule, location:(g('f-loc').value||'').trim(),
     description:(g('f-desc').value||'').trim(), topPageUrl:(g('f-top').value||'').trim(),
+    worldClocks:_readWorldClocks(), fxPairs:_readFxPairs(),
     published:!!g('f-pub').checked, participantIds:_participants.slice(),
     participantsPublic:participantsPublic,
     eventType:g('f-evtype').value||'closed',

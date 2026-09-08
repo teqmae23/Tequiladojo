@@ -81,6 +81,21 @@ a{color:var(--gold-d)}
 .sch-row .d{font-weight:600;color:var(--ink2)}
 .sch-row .t{color:var(--ink);font-family:var(--mono)}
 .desc{font-size:14px;line-height:1.8;color:var(--ink);white-space:pre-wrap}
+.ov-div{border:none;border-top:1px solid var(--border);margin:10px 0}
+.fx-clocks{margin:2px 0 8px}
+.clk-title{font-size:12px;font-weight:700;color:var(--ink3);margin-bottom:6px}
+.clk-row{display:flex;flex-wrap:wrap;gap:6px}
+.clk{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:5px 10px;min-width:88px}
+.clk-city{font-size:11px;color:var(--ink3);white-space:nowrap}
+.clk-time{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fx-charts{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.fx-card{flex:1 1 260px;min-width:0;background:var(--cream);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
+.fx-hd{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:2px}
+.fx-cur{font-size:12px;color:var(--ink3);margin-bottom:2px}
+.fx-rate{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+.fx-unit{font-size:11px;color:var(--ink3)}
+.fx-chg{font-size:12px;font-weight:700;margin-left:4px}
+.fx-axis{display:flex;justify-content:space-between;gap:6px;font-size:10px;color:var(--ink3);margin-top:2px}
 .msg{padding:40px 20px;text-align:center;color:var(--ink3);font-size:14px}
 .msg a{font-weight:600}
 .pill{display:inline-block;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;background:var(--cream3);color:var(--ink3);margin-left:8px;vertical-align:middle}
@@ -672,6 +687,7 @@ function render(ev){
   document.title=(ev.name||'イベント')+' — テキーラ道場';
   loadParticipants();
   loadFamViewers();
+  initIntlWidgets();
   if(hasSchedule) loadSchedule();
   if(hasChecklist) loadChecklist();
   if(hasDocs) loadDocuments();
@@ -680,17 +696,98 @@ function render(ev){
 }
 function _hoursText(s){ if(s.allDay) return '終日'; if(s.open||s.close) return (s.open||'—')+' 〜 '+(s.close||'—'); return '時間未定'; }
 function toggleHours(){ var b=g('ev-hours'),btn=g('hours-btn'); if(!b)return; var open=b.style.display!=='none'; b.style.display=open?'none':''; if(btn)btn.textContent=open?'各日の開催時間 ▾':'各日の開催時間 ▴'; }
+
+/* ════════ 世界時計＆為替レートチャート（詳細と参加者の間） ════════ */
+var _clkTimer=null, _fxTimer=null;
+function initIntlWidgets(){
+  var ev=_ev||{};
+  var clocks=(Array.isArray(ev.worldClocks)?ev.worldClocks:[]);
+  var fx=(Array.isArray(ev.fxPairs)?ev.fxPairs.filter(function(p){return p&&p.base&&p.quote;}):[]);
+  if(!clocks.length && !fx.length) return;
+  renderClocks();
+  loadFxCharts();
+  if(_clkTimer) clearInterval(_clkTimer);
+  _clkTimer=setInterval(_tickClocks, 30000);        // 現地時間: 30秒ごと
+  if(_fxTimer) clearInterval(_fxTimer);
+  _fxTimer=setInterval(loadFxCharts, 300000);        // 為替: 5分ごと
+}
+function renderClocks(){
+  var el=g('fx-clocks'); if(!el) return;
+  var ev=_ev||{};
+  var list=[{city:'東京(JST)', tz:'Asia/Tokyo'}].concat((Array.isArray(ev.worldClocks)?ev.worldClocks:[]).slice(0,5));
+  el.innerHTML='<div class="clk-title">🕐 現地時間</div><div class="clk-row">'
+    + list.map(function(c,i){ return '<div class="clk"><div class="clk-city">'+esc(c.city||c.tz)+'</div><div class="clk-time" id="clk-t-'+i+'" data-tz="'+esc(c.tz)+'">--:--</div></div>'; }).join('')
+    + '</div>';
+  _tickClocks();
+}
+function _tickClocks(){
+  var els=document.querySelectorAll('#fx-clocks .clk-time'); if(!els.length) return;
+  var now=new Date();
+  Array.prototype.forEach.call(els, function(e){
+    var tz=e.getAttribute('data-tz');
+    try{ e.textContent=new Intl.DateTimeFormat('ja-JP',{timeZone:tz, weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false}).format(now); }
+    catch(err){ e.textContent='—'; }
+  });
+}
+function loadFxCharts(){
+  var el=g('fx-charts'); if(!el) return;
+  var ev=_ev||{};
+  var pairs=(Array.isArray(ev.fxPairs)?ev.fxPairs:[]).filter(function(p){return p&&p.base&&p.quote;}).slice(0,2);
+  if(!pairs.length){ el.innerHTML=''; return; }
+  if(!el.getAttribute('data-init')){
+    el.innerHTML=pairs.map(function(p,i){ return '<div class="fx-card"><div class="fx-hd">'+esc(p.base)+' / '+esc(p.quote)+'</div><div class="fx-body" id="fx-body-'+i+'"><div style="font-size:12px;color:var(--ink3)">読み込み中…</div></div></div>'; }).join('');
+    el.setAttribute('data-init','1');
+  }
+  pairs.forEach(function(p,i){ _fetchFx(p.base, p.quote, i); });
+}
+function _fetchFx(base, quote, i){
+  var end=new Date(), start=new Date(end.getTime()-63*86400000);
+  var f=function(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
+  var url='https://api.frankfurter.app/'+f(start)+'..'+f(end)+'?from='+encodeURIComponent(base)+'&to='+encodeURIComponent(quote);
+  fetch(url).then(function(r){ return r.json(); }).then(function(d){
+    var rates=(d&&d.rates)||{};
+    var series=Object.keys(rates).sort().map(function(k){ return {date:k, rate:rates[k][quote]}; }).filter(function(s){ return s.rate!=null; });
+    var body=g('fx-body-'+i); if(body) body.innerHTML=_fxChartSvg(base, quote, series);
+  }).catch(function(){ var body=g('fx-body-'+i); if(body) body.innerHTML='<div style="font-size:12px;color:var(--ink3)">レートを取得できませんでした</div>'; });
+}
+function _fxChartSvg(base, quote, series){
+  if(!series.length) return '<div style="font-size:12px;color:var(--ink3)">レートを取得できませんでした</div>';
+  var W=320, H=104, padL=4, padR=4, padT=6, padB=16;
+  var vals=series.map(function(s){return s.rate;});
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), range=(max-min)||1;
+  var n=series.length;
+  var X=function(idx){ return padL+(W-padL-padR)*(n<=1?0:(idx/(n-1))); };
+  var Y=function(v){ return padT+(H-padT-padB)*(1-(v-min)/range); };
+  var line=series.map(function(s,idx){ return X(idx).toFixed(1)+','+Y(s.rate).toFixed(1); }).join(' ');
+  var area='0,'+H+' '+series.map(function(s,idx){ return X(idx).toFixed(1)+','+Y(s.rate).toFixed(1); }).join(' ')+' '+W+','+H;
+  var cur=series[n-1].rate, first=series[0].rate, up=cur>=first;
+  var col=up?'#1a7a4a':'#b0442e';
+  var chg=first?((cur-first)/first*100):0;
+  var fmtR=function(v){ return v>=100?v.toFixed(1):v.toFixed(3); };
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:104px;display:block">'
+    +'<polygon points="'+area+'" fill="'+col+'" opacity="0.08"></polygon>'
+    +'<polyline points="'+line+'" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline>'
+    +'<circle cx="'+X(n-1).toFixed(1)+'" cy="'+Y(cur).toFixed(1)+'" r="2.6" fill="'+col+'"></circle>'
+    +'</svg>';
+  return '<div class="fx-cur"><span class="fx-rate" style="color:'+col+'">'+fmtR(cur)+'</span> <span class="fx-unit">'+esc(quote)+' / 1 '+esc(base)+'</span> <span class="fx-chg" style="color:'+col+'">'+(up?'▲':'▼')+Math.abs(chg).toFixed(2)+'%</span></div>'
+    + svg
+    + '<div class="fx-axis"><span>'+esc(series[0].date)+'</span><span>高 '+fmtR(max)+' / 安 '+fmtR(min)+'</span><span>'+esc(series[n-1].date)+'</span></div>';
+}
 function overviewHtml(ev, period){
   var sched=(ev.schedule||[]).filter(function(s){ return s&&s.date; });
-  var h='<div class="card"><div class="sec">開催概要</div>';
-  h+='<div class="kv kv-big"><div class="k">期間</div><div class="v">'+esc(period)+(sched.length?' <button class="hours-btn" id="hours-btn" onclick="toggleHours()">各日の開催時間 ▾</button>':'')+'</div></div>';
-  if(sched.length){
-    h+='<div id="ev-hours" class="ev-hours" style="display:none"><div class="sch">'
+  var hoursBlock = sched.length ? ('<div id="ev-hours" class="ev-hours" style="display:none"><div class="sch">'
       +sched.map(function(s){ return '<div class="sch-row"><span class="d">'+esc(fmtDate(s.date))+' '+wday(s.date)+'</span><span class="t">'+esc(_hoursText(s))+'</span></div>'; }).join('')
-      +'</div></div>';
-  }
-  if(ev.location) h+='<div class="kv kv-big"><div class="k">場所</div><div class="v">'+esc(ev.location)+'</div></div>';
-  if(ev.description) h+='<div class="kv kv-big"><div class="k">詳細</div><div class="v" style="font-weight:400;white-space:pre-wrap;line-height:1.7">'+esc(ev.description)+'</div></div>';
+      +'</div></div>') : '';
+  var secs=[];
+  secs.push('<div class="kv kv-big"><div class="k">期間</div><div class="v">'+esc(period)+(sched.length?' <button class="hours-btn" id="hours-btn" onclick="toggleHours()">各日の開催時間 ▾</button>':'')+'</div></div>'+hoursBlock);
+  if(ev.location) secs.push('<div class="kv kv-big"><div class="k">場所</div><div class="v">'+esc(ev.location)+'</div></div>');
+  if(ev.description) secs.push('<div class="kv kv-big"><div class="k">詳細</div><div class="v" style="font-weight:400;white-space:pre-wrap;line-height:1.7">'+esc(ev.description)+'</div></div>');
+  var _clocks=(Array.isArray(ev.worldClocks)?ev.worldClocks:[]);
+  var _fx=(Array.isArray(ev.fxPairs)?ev.fxPairs.filter(function(p){return p&&p.base&&p.quote;}):[]);
+  if(_clocks.length || _fx.length) secs.push('<div id="fx-clocks" class="fx-clocks"></div><div id="fx-charts" class="fx-charts"></div>');
+  var h='<div class="card"><div class="sec">開催概要</div>';
+  h+=secs.join('<hr class="ov-div">');
+  h+='<hr class="ov-div">';
   h+='<div class="kv kv-big"><div class="k" style="white-space:nowrap">参加者 <button class="hours-btn" style="border-color:var(--gold-d);color:var(--gold-d)" onclick="openProfiles()">👥 プロフィール</button></div><div class="v" id="mypage-note"></div></div>';
   h+='<div class="pt-grid" id="roster" style="margin-top:8px"><div style="font-size:12px;color:var(--ink3)">読み込み中…</div></div>';
   h+='<div id="fam-section"></div>';
