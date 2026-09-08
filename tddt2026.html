@@ -92,8 +92,9 @@ a{color:var(--gold-d)}
 .fx-charts{margin-top:4px}
 .fx-title{font-size:12px;font-weight:700;color:var(--ink3);margin:2px 0 6px}
 .fx-cards{display:flex;flex-wrap:wrap;gap:10px}
-.fx-xaxis{position:relative;height:13px;margin-top:2px}
-.fx-xaxis span{position:absolute;top:0;font-size:9px;color:var(--ink3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.fx-plot{position:relative}
+.fx-y{position:absolute;right:2px;transform:translateY(-50%);font-size:9px;color:var(--ink2);background:rgba(255,255,255,.72);padding:0 3px;border-radius:2px;font-variant-numeric:tabular-nums;pointer-events:none}
+.fx-xends{display:flex;justify-content:space-between;font-size:9px;color:var(--ink3);margin-top:2px;font-variant-numeric:tabular-nums}
 .fx-card{flex:1 1 260px;min-width:0;background:var(--cream);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
 .fx-hd{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:2px}
 .fx-cur{font-size:12px;color:var(--ink3);margin-bottom:2px}
@@ -726,12 +727,22 @@ function renderClocks(){
   _tickClocks();
   _loadClockWx(list);
 }
+// 都市名→座標（保存済み設定に座標が無くても天気を取得できるようにするフォールバック）
+var CITY_GEO={
+  '東京':[35.68,139.69],'東京(JST)':[35.68,139.69],'サンフランシスコ':[37.77,-122.42],'ロサンゼルス':[34.05,-118.24],
+  'メキシコシティ':[19.43,-99.13],'グアダラハラ':[20.67,-103.35],'テキーラ':[20.88,-103.84],'アランダス':[20.71,-102.36],
+  'ニューヨーク':[40.71,-74.01],'ホノルル':[21.31,-157.86],'ロンドン':[51.51,-0.13],'パリ':[48.85,2.35],
+  'シンガポール':[1.35,103.82],'香港':[22.32,114.17],'ソウル':[37.57,126.98],'台北':[25.03,121.57],
+  'バンコク':[13.76,100.50],'ドバイ':[25.20,55.27],'シドニー':[-33.87,151.21]
+};
 // 各都市の前日の最高/最低気温・平均湿度（Open-Meteo・無料/キー不要）
 function _loadClockWx(list){
   list.forEach(function(c,i){
-    if(c.lat==null||c.lon==null) return;
+    var lat=c.lat, lon=c.lon;
+    if(lat==null||lon==null){ var gg=CITY_GEO[c.city]; if(gg){ lat=gg[0]; lon=gg[1]; } }
+    if(lat==null||lon==null) return;
     var tz=c.tz||'auto';
-    var url='https://api.open-meteo.com/v1/forecast?latitude='+encodeURIComponent(c.lat)+'&longitude='+encodeURIComponent(c.lon)
+    var url='https://api.open-meteo.com/v1/forecast?latitude='+encodeURIComponent(lat)+'&longitude='+encodeURIComponent(lon)
       +'&daily=temperature_2m_max,temperature_2m_min&hourly=relative_humidity_2m&past_days=2&forecast_days=1&timezone=auto';
     fetch(url).then(function(r){ return r.json(); }).then(function(d){
       var y=new Date(Date.now()-86400000);
@@ -805,26 +816,19 @@ function _fxChartSvg(base, quote, series){
   var chg=first?((cur-first)/first*100):0;
   var fmtR=function(v){ return v>=100?v.toFixed(1):v.toFixed(3); };
   var md=function(dt){ return parseInt(dt.slice(5,7),10)+'/'+parseInt(dt.slice(8,10),10); };
-  // x軸目盛（5点・等間隔）
-  var TICKS=(n>=5?5:n), ticks=[];
-  for(var t=0;t<TICKS;t++){ var idx=(TICKS<=1)?0:Math.round((n-1)*t/(TICKS-1)); ticks.push({idx:idx, x:X(idx), label:md(series[idx].date)}); }
-  var grid=ticks.map(function(tk){ return '<line x1="'+tk.x.toFixed(1)+'" y1="'+padT+'" x2="'+tk.x.toFixed(1)+'" y2="'+(H-padB)+'" stroke="#000" stroke-opacity="0.06" stroke-width="1"></line>'; }).join('');
+  // 金額(縦)軸の目盛: 高値・中間・安値
+  var levels=[max, (max+min)/2, min];
+  var hgrid=levels.map(function(v){ var yy=Y(v); return '<line x1="0" y1="'+yy.toFixed(1)+'" x2="'+W+'" y2="'+yy.toFixed(1)+'" stroke="#000" stroke-opacity="0.06" stroke-width="1"></line>'; }).join('');
   var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:100px;display:block">'
-    +grid
+    +hgrid
     +'<polygon points="'+area+'" fill="'+col+'" opacity="0.08"></polygon>'
     +'<polyline points="'+line+'" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline>'
     +'<circle cx="'+X(n-1).toFixed(1)+'" cy="'+Y(cur).toFixed(1)+'" r="2.6" fill="'+col+'"></circle>'
     +'</svg>';
-  var xaxis='<div class="fx-xaxis">'+ticks.map(function(tk){
-      var pct=(tk.x-padL)/(W-padL-padR)*100;
-      var al=(tk.idx===0)?'left':(tk.idx===n-1?'right':'center');
-      var tr=(al==='left')?'0':(al==='right'?'-100%':'-50%');
-      return '<span style="left:'+pct.toFixed(1)+'%;transform:translateX('+tr+')">'+tk.label+'</span>';
-    }).join('')+'</div>';
+  var ylabels=levels.map(function(v){ var pct=Y(v)/H*100; return '<span class="fx-y" style="top:'+pct.toFixed(1)+'%">'+fmtR(v)+'</span>'; }).join('');
   return '<div class="fx-cur"><span class="fx-rate" style="color:'+col+'">'+fmtR(cur)+'</span> <span class="fx-unit">'+esc(quote)+' / 1 '+esc(base)+'</span> <span class="fx-chg" style="color:'+col+'">'+(up?'▲':'▼')+Math.abs(chg).toFixed(2)+'%</span></div>'
-    + svg
-    + xaxis
-    + '<div class="fx-axis"><span>高 '+fmtR(max)+'</span><span>安 '+fmtR(min)+'</span></div>';
+    + '<div class="fx-plot">'+svg+ylabels+'</div>'
+    + '<div class="fx-xends"><span>'+md(series[0].date)+'</span><span>'+md(series[n-1].date)+'</span></div>';
 }
 function overviewHtml(ev, period){
   var sched=(ev.schedule||[]).filter(function(s){ return s&&s.date; });
