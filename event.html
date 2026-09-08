@@ -55,6 +55,8 @@ a{color:var(--gold-d)}
 .acc-ic{font-size:20px;flex:0 0 auto;line-height:1}
 .acc-ttl{flex:1;min-width:0;font-size:16px;font-weight:700;color:var(--ink)}
 .acc-car{font-size:13px;color:var(--ink2);flex:0 0 auto}
+.acc-badge{font-size:11px;font-weight:700;color:var(--red);flex:0 1 auto;min-width:0;text-align:right;line-height:1.3}
+.acc-badge:empty{display:none}
 .acc.open .acc-hd{border-bottom:1px solid var(--border);background:var(--cream)}
 .acc-bd{padding:14px 16px}
 /* 単一コンテナ（#*-cont でラップ）: カードを平坦化し先頭タイトルを隠す */
@@ -621,7 +623,7 @@ function wday(s){ try{ var d=new Date(s+'T00:00:00'); return '（'+['日','月',
 var CN_NAMES={schedule:'🗓 スケジュール/タイムテーブル',checklist:'✅ タスクリスト',documents:'📁 ドキュメント保管庫'};
 function accSection(type, icon, title, innerHtml, open){
   return '<section class="acc'+(type==='overview'?' acc-ov':'')+(open?' open':'')+'" id="acc-'+type+'">'
-    +'<button type="button" class="acc-hd" onclick="toggleAcc(\''+type+'\')"><span class="acc-ic">'+icon+'</span><span class="acc-ttl">'+esc(title)+'</span><span class="acc-car">'+(open?'▾':'▸')+'</span></button>'
+    +'<button type="button" class="acc-hd" onclick="toggleAcc(\''+type+'\')"><span class="acc-ic">'+icon+'</span><span class="acc-ttl">'+esc(title)+'</span><span class="acc-badge" id="accbadge-'+type+'"></span><span class="acc-car">'+(open?'▾':'▸')+'</span></button>'
     +'<div class="acc-bd" id="accbd-'+type+'"'+(open?'':' style="display:none"')+'>'+innerHtml+'</div></section>';
 }
 function toggleAcc(type){
@@ -640,6 +642,8 @@ function toggleAcc(type){
   b.style.display=willOpen?'':'none';
   if(s){ s.classList.toggle('open',willOpen); var c=s.querySelector('.acc-car'); if(c) c.textContent=willOpen?'▾':'▸'; }
 }
+// アコーディオン見出し右のバッジ（未完了/未回答件数）を設定
+function _setAccBadge(type, text){ var el=g('accbadge-'+type); if(el) el.textContent=text||''; }
 function render(ev){
   _ev=ev;
   var period=fmtDate(ev.startDate)+(ev.endDate&&ev.endDate!==ev.startDate?(' 〜 '+fmtDate(ev.endDate)):'');
@@ -1864,10 +1868,10 @@ function taskDetailHtml(t){
 function toggleTaskDetail(id){ var d=g('ckd-'+id), c=g('ckcar-'+id); if(!d) return; var open=d.style.display!=='none'; d.style.display=open?'none':''; _ckExpanded[id]=!open; if(c)c.textContent=open?'▸':'▾'; }
 function renderChecklist(){
   var el=g('checklist-cont'); if(!el) return;
-  if(!_tasks.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">タスクリストはまだありません。</div></div>'; return; }
+  if(!_tasks.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">タスクリストはまだありません。</div></div>'; _setAccBadge('checklist',''); return; }
   // 表示できる項目のみ（対象者=選択者・表示範囲=選択者のみで対象外の場合は非表示）
   var vis=_tasks.filter(_taskVisibleSelf);
-  if(!vis.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">表示できるタスクはありません。</div></div>'; return; }
+  if(!vis.length){ el.innerHTML='<div class="card"><div class="sec">✅ タスクリスト</div><div style="font-size:12px;color:var(--ink3)">表示できるタスクはありません。</div></div>'; _setAccBadge('checklist',''); return; }
   // 並び順: 対象項目が先→期限切れ→未完了→完了（各内で期限早い順→登録が早い順）、対象外（グレー）は末尾
   var ORDER={over:0, todo:1, done:2};
   var arr=vis.slice().sort(function(a,b){
@@ -1882,6 +1886,7 @@ function renderChecklist(){
   var checked=0, unchecked=0, overdue=0;
   arr.forEach(function(t){ if(!_taskActiveSelf(t)) return; var s=_taskMyState(t); if(s==='done')checked++; else { unchecked++; if(s==='over')overdue++; } });
   var ov = overdue>0?'over':(unchecked>0?'todo':'done');
+  _setAccBadge('checklist', unchecked>0?('未完了のタスクが'+unchecked+'件あります'):'');
   var ckHead=(unchecked>0)?('未完了のタスクが'+unchecked+'件あります'):'未完了のタスクはありません';
   var h='<div class="card"><div class="sec-row"><div class="sec">✅ タスクリスト</div>'
     +'<div class="ck-summary '+ov+'">'+CK_STATE_ICON[ov]+' '+ckHead+'（完了：'+checked+'件 ／ 未完了：'+unchecked+'件）</div></div>';
@@ -2222,6 +2227,7 @@ function loadSurveys(eventPublished){
         .then(function(rs){ _resCache[s.id]=rs.docs.map(function(d){return d.data();}); }).catch(function(){});
     }));
   }).then(function(){
+    _updateSurveyBadge(); // 未回答件数を見出し右に表示
     if(!list.length){ return; }
     var box=g('surveys');
     var actList=list.filter(function(s){ return !_svIsPast(s); });
@@ -2241,6 +2247,12 @@ function loadSurveys(eventPublished){
 function _svToday(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function _svExpired(s){ return !!(s && s.deadline && s.deadline < _svToday()); } // 締切日を過ぎたら受付終了
 function _svIsPast(s){ return (s.status==='closed') || _svExpired(s); }         // 過去のアンケート判定
+// 未回答（受付中・締切前・自分が未回答）のアンケート件数を見出し右バッジに反映
+function _updateSurveyBadge(){
+  var arr=Object.keys(_surveys).map(function(k){ return _surveys[k]; });
+  var un=_isReal?arr.filter(function(s){ return s.status==='open' && !_svExpired(s) && !_myResp[s.id]; }).length:0;
+  _setAccBadge('survey', un>0?('未回答のアンケートが'+un+'件あります'):'');
+}
 function tagFor(s){
   if(_myResp[s.id]) return '<span class="sv-tag tag-done">回答済み</span>';
   if(s.status==='open' && !_svExpired(s)) return '<span class="sv-tag tag-open">受付中</span>';
@@ -2334,7 +2346,7 @@ function submitSurvey(sid){
     _myResp[sid]=Object.assign({},data);
     // 結果を再取得（閲覧可能なら）
     if(canSeeResults(s)){ return svCol().doc(sid).collection('responses').get().then(function(rs){ _resCache[sid]=rs.docs.map(function(d){return d.data();}); }); }
-  }).then(function(){ renderCard(sid); toast('回答を送信しました'); })
+  }).then(function(){ renderCard(sid); _updateSurveyBadge(); toast('回答を送信しました'); })
     .catch(function(e){ if(btn)btn.disabled=false; if(err) err.textContent='送信失敗: '+e.message; });
 }
 
