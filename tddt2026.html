@@ -124,6 +124,9 @@ a{color:var(--gold-d)}
 .pt-nm{font-size:12.5px;font-weight:600;color:var(--ink)}
 .pt-bio{font-size:11px;color:var(--ink3);line-height:1.4;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pt-me{border-color:var(--gold);background:#fffaf0}
+.pt-hostsep{flex:0 0 100%;height:0;border-top:1px solid var(--border2);margin:8px 0 0}
+.pt-hosttitle{flex:0 0 100%;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.06em;margin:2px 0 2px}
+.pt-host{border-color:#bfe0d6;background:#f2f8f6}
 /* 参加者プロフィール一覧 */
 .pf-item{display:flex;align-items:flex-start;gap:11px;padding:12px 2px;border-bottom:1px solid var(--border)}
 .pf-item:last-child{border-bottom:none}
@@ -739,10 +742,19 @@ function loadParticipants(){
 }
 function renderRoster(){
   var r=g('roster'); if(!r) return;
-  if(!_participants.length){ r.innerHTML='<div style="font-size:12px;color:var(--ink3)">まだ参加登録者がいません。</div>'; return; }
-  r.innerHTML=_participants.map(function(p){
+  var hosts=(_ev&&Array.isArray(_ev.localHosts))?_ev.localHosts:[];
+  if(!_participants.length && !hosts.length){ r.innerHTML='<div style="font-size:12px;color:var(--ink3)">まだ参加登録者がいません。</div>'; return; }
+  var html=_participants.map(function(p){
     return '<div class="pt-card'+(p.id===_uid?' pt-me':'')+'">'+ptAvatar(p)+'<div class="pt-tx"><div class="pt-nm">'+esc(p.nickname||'（会員）')+'</div>'+(p.bio?'<div class="pt-bio">'+esc(p.bio)+'</div>':'')+'</div></div>';
   }).join('');
+  if(hosts.length){
+    html+='<div class="pt-hostsep"></div><div class="pt-hosttitle">現地ホスト</div>'
+      + hosts.map(function(h){
+          var hp={iconUrl:h.iconUrl||'', nickname:h.name||'現地ホスト'};
+          return '<div class="pt-card pt-host">'+ptAvatar(hp)+'<div class="pt-tx"><div class="pt-nm">'+esc(h.name||'現地ホスト')+'</div>'+(h.bio?'<div class="pt-bio">'+esc(h.bio)+'</div>':'')+'</div></div>';
+        }).join('');
+  }
+  r.innerHTML=html;
 }
 function renderMypageBar(){
   var noteEl=g('mypage-note'), actEl=g('mypage-actions');
@@ -1183,6 +1195,9 @@ function _findByTid(tid){
     if(p.memberId!=null && String(p.memberId)===tid) return p;
     if(p.id && String(p.id)==='mid:'+tid) return p;
   }
+  // 現地ホスト（登録会員以外）
+  var hosts=(_ev&&Array.isArray(_ev.localHosts))?_ev.localHosts:[];
+  for(var j=0;j<hosts.length;j++){ if(String(hosts[j].id)===tid) return {id:hosts[j].id, nickname:hosts[j].name, iconUrl:hosts[j].iconUrl||'', bio:hosts[j].bio||'', isHost:true}; }
   return null;
 }
 function _pName(p){ return (p&&(p.nickname||p.memberId))||'（会員）'; }
