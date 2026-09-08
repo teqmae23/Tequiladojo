@@ -1867,3 +1867,67 @@ exports.logEnvHourly = functions.region('asia-northeast1')
       return null;
     }
   });
+
+// ── カレンダーHTMLをサイトリポジトリへ公開（owner専用・GitHubトークンはFirestoreに保存） ──
+// ブラウザにトークンを保存しないため、都度の再入力が不要になる（初回のみ入力）。
+exports.publishCalendar = functions.region('asia-northeast1')
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', '認証が必要です');
+    // owner判定（claim または members.role）
+    let isOwner = context.auth.token && context.auth.token.role === 'owner';
+    if (!isOwner) {
+      const cs = await db.collection('members').where('authUid', '==', context.auth.uid).limit(1).get();
+      isOwner = !cs.empty && cs.docs[0].data().role === 'owner';
+    }
+    if (!isOwner) throw new functions.https.HttpsError('permission-denied', 'オーナー権限が必要です');
+
+    const files = Array.isArray(data && data.files) ? data.files : [];
+    if (!files.length) throw new functions.https.HttpsError('invalid-argument', 'ファイルがありません');
+    for (const f of files) {
+      if (!f || typeof f.path !== 'string' || typeof f.content !== 'string') {
+        throw new functions.https.HttpsError('invalid-argument', 'ファイル形式が不正です');
+      }
+      if (!/^calendar\/[A-Za-z0-9_.\-]+\.html$/.test(f.path)) {
+        throw new functions.https.HttpsError('invalid-argument', 'パスが不正です: ' + f.path);
+      }
+      if (f.content.length > 800000) {
+        throw new functions.https.HttpsError('invalid-argument', 'ファイルが大きすぎます: ' + f.path);
+      }
+    }
+
+    const cfgRef = db.collection('appConfig').doc('github');
+    let token = (data && typeof data.token === 'string' && data.token.trim()) ? data.token.trim() : '';
+    if (token) {
+      await cfgRef.set({ calToken: token, calTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    } else {
+      const snap = await cfgRef.get();
+      token = (snap.exists && snap.data().calToken) || '';
+    }
+    if (!token) throw new functions.https.HttpsError('failed-precondition', 'GitHubトークンが未設定です。初回のみトークンを入力してください。');
+
+    const owner = 'teqmae23', repo = 'tequiladojo-site', branch = 'main';
+    const results = [];
+    for (const f of files) {
+      const url = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + f.path;
+      const headers = {
+        'Authorization': 'token ' + token,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'tequiladojo-calendar'
+      };
+      let sha = null;
+      const getRes = await fetch(url + '?ref=' + encodeURIComponent(branch), { headers });
+      if (getRes.status === 401) throw new functions.https.HttpsError('unauthenticated', 'GitHubトークンが無効です。トークンを入力し直してください。');
+      if (getRes.ok) { const j = await getRes.json(); sha = (j && j.sha) || null; }
+      const body = { message: 'Update ' + f.path, content: Buffer.from(f.content, 'utf8').toString('base64'), branch };
+      if (sha) body.sha = sha;
+      const putRes = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) });
+      if (putRes.status === 401) throw new functions.https.HttpsError('unauthenticated', 'GitHubトークンが無効です。トークンを入力し直してください。');
+      if (!putRes.ok) {
+        const t = await putRes.text();
+        throw new functions.https.HttpsError('internal', 'GitHub API error (' + f.path + '): ' + putRes.status + ' ' + t.slice(0, 200));
+      }
+      results.push({ path: f.path, ok: true });
+    }
+    return { ok: true, files: results };
+  });
