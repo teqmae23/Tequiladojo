@@ -89,7 +89,11 @@ a{color:var(--gold-d)}
 .clk-city{font-size:11px;color:var(--ink3);white-space:nowrap}
 .clk-time{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .clk-wx{font-size:10px;color:var(--ink3);white-space:nowrap;margin-top:1px}
-.fx-charts{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.fx-charts{margin-top:4px}
+.fx-title{font-size:12px;font-weight:700;color:var(--ink3);margin:2px 0 6px}
+.fx-cards{display:flex;flex-wrap:wrap;gap:10px}
+.fx-xaxis{position:relative;height:13px;margin-top:2px}
+.fx-xaxis span{position:absolute;top:0;font-size:9px;color:var(--ink3);white-space:nowrap;font-variant-numeric:tabular-nums}
 .fx-card{flex:1 1 260px;min-width:0;background:var(--cream);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
 .fx-hd{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:2px}
 .fx-cur{font-size:12px;color:var(--ink3);margin-bottom:2px}
@@ -761,7 +765,7 @@ function loadFxCharts(){
   var pairs=(Array.isArray(ev.fxPairs)?ev.fxPairs:[]).filter(function(p){return p&&p.base&&p.quote;}).slice(0,2);
   if(!pairs.length){ el.innerHTML=''; return; }
   if(!el.getAttribute('data-init')){
-    el.innerHTML=pairs.map(function(p,i){ return '<div class="fx-card"><div class="fx-hd">'+esc(p.base)+' / '+esc(p.quote)+'</div><div class="fx-body" id="fx-body-'+i+'"><div style="font-size:12px;color:var(--ink3)">読み込み中…</div></div></div>'; }).join('');
+    el.innerHTML='<div class="fx-title">💱 為替レート</div><div class="fx-cards">'+pairs.map(function(p,i){ return '<div class="fx-card"><div class="fx-hd">'+esc(p.base)+' / '+esc(p.quote)+'</div><div class="fx-body" id="fx-body-'+i+'"><div style="font-size:12px;color:var(--ink3)">読み込み中…</div></div></div>'; }).join('')+'</div>';
     el.setAttribute('data-init','1');
   }
   pairs.forEach(function(p,i){ _fetchFx(p.base, p.quote, i); });
@@ -788,7 +792,7 @@ function _fetchFx(base, quote, i){
 }
 function _fxChartSvg(base, quote, series){
   if(!series.length) return '<div style="font-size:12px;color:var(--ink3)">レートを取得できませんでした</div>';
-  var W=320, H=104, padL=4, padR=4, padT=6, padB=16;
+  var W=320, H=100, padL=4, padR=4, padT=6, padB=6;
   var vals=series.map(function(s){return s.rate;});
   var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), range=(max-min)||1;
   var n=series.length;
@@ -800,14 +804,27 @@ function _fxChartSvg(base, quote, series){
   var col=up?'#1a7a4a':'#b0442e';
   var chg=first?((cur-first)/first*100):0;
   var fmtR=function(v){ return v>=100?v.toFixed(1):v.toFixed(3); };
-  var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:104px;display:block">'
+  var md=function(dt){ return parseInt(dt.slice(5,7),10)+'/'+parseInt(dt.slice(8,10),10); };
+  // x軸目盛（5点・等間隔）
+  var TICKS=(n>=5?5:n), ticks=[];
+  for(var t=0;t<TICKS;t++){ var idx=(TICKS<=1)?0:Math.round((n-1)*t/(TICKS-1)); ticks.push({idx:idx, x:X(idx), label:md(series[idx].date)}); }
+  var grid=ticks.map(function(tk){ return '<line x1="'+tk.x.toFixed(1)+'" y1="'+padT+'" x2="'+tk.x.toFixed(1)+'" y2="'+(H-padB)+'" stroke="#000" stroke-opacity="0.06" stroke-width="1"></line>'; }).join('');
+  var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:100px;display:block">'
+    +grid
     +'<polygon points="'+area+'" fill="'+col+'" opacity="0.08"></polygon>'
     +'<polyline points="'+line+'" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline>'
     +'<circle cx="'+X(n-1).toFixed(1)+'" cy="'+Y(cur).toFixed(1)+'" r="2.6" fill="'+col+'"></circle>'
     +'</svg>';
+  var xaxis='<div class="fx-xaxis">'+ticks.map(function(tk){
+      var pct=(tk.x-padL)/(W-padL-padR)*100;
+      var al=(tk.idx===0)?'left':(tk.idx===n-1?'right':'center');
+      var tr=(al==='left')?'0':(al==='right'?'-100%':'-50%');
+      return '<span style="left:'+pct.toFixed(1)+'%;transform:translateX('+tr+')">'+tk.label+'</span>';
+    }).join('')+'</div>';
   return '<div class="fx-cur"><span class="fx-rate" style="color:'+col+'">'+fmtR(cur)+'</span> <span class="fx-unit">'+esc(quote)+' / 1 '+esc(base)+'</span> <span class="fx-chg" style="color:'+col+'">'+(up?'▲':'▼')+Math.abs(chg).toFixed(2)+'%</span></div>'
     + svg
-    + '<div class="fx-axis"><span>'+esc(series[0].date)+'</span><span>高 '+fmtR(max)+' / 安 '+fmtR(min)+'</span><span>'+esc(series[n-1].date)+'</span></div>';
+    + xaxis
+    + '<div class="fx-axis"><span>高 '+fmtR(max)+'</span><span>安 '+fmtR(min)+'</span></div>';
 }
 function overviewHtml(ev, period){
   var sched=(ev.schedule||[]).filter(function(s){ return s&&s.date; });
