@@ -725,7 +725,7 @@ function _tickClocks(){
   var now=new Date();
   Array.prototype.forEach.call(els, function(e){
     var tz=e.getAttribute('data-tz');
-    try{ e.textContent=new Intl.DateTimeFormat('ja-JP',{timeZone:tz, weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false}).format(now); }
+    try{ e.textContent=new Intl.DateTimeFormat('ja-JP',{timeZone:tz, month:'numeric', day:'numeric', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false}).format(now); }
     catch(err){ e.textContent='—'; }
   });
 }
@@ -743,12 +743,22 @@ function loadFxCharts(){
 function _fetchFx(base, quote, i){
   var end=new Date(), start=new Date(end.getTime()-63*86400000);
   var f=function(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
-  var url='https://api.frankfurter.app/'+f(start)+'..'+f(end)+'?from='+encodeURIComponent(base)+'&to='+encodeURIComponent(quote);
-  fetch(url).then(function(r){ return r.json(); }).then(function(d){
-    var rates=(d&&d.rates)||{};
-    var series=Object.keys(rates).sort().map(function(k){ return {date:k, rate:rates[k][quote]}; }).filter(function(s){ return s.rate!=null; });
-    var body=g('fx-body-'+i); if(body) body.innerHTML=_fxChartSvg(base, quote, series);
-  }).catch(function(){ var body=g('fx-body-'+i); if(body) body.innerHTML='<div style="font-size:12px;color:var(--ink3)">レートを取得できませんでした</div>'; });
+  var range=f(start)+'..'+f(end);
+  // 取得先フォールバック（frankfurter.dev → frankfurter.app）
+  var urls=[
+    'https://api.frankfurter.dev/v1/'+range+'?base='+encodeURIComponent(base)+'&symbols='+encodeURIComponent(quote),
+    'https://api.frankfurter.app/'+range+'?from='+encodeURIComponent(base)+'&to='+encodeURIComponent(quote)
+  ];
+  var tryUrl=function(k){
+    if(k>=urls.length){ var b0=g('fx-body-'+i); if(b0) b0.innerHTML='<div style="font-size:12px;color:var(--ink3)">レートを取得できませんでした</div>'; return; }
+    fetch(urls[k]).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); }).then(function(d){
+      var rates=(d&&d.rates)||{};
+      var series=Object.keys(rates).sort().map(function(kk){ return {date:kk, rate:(rates[kk]&&rates[kk][quote])}; }).filter(function(s){ return s.rate!=null; });
+      if(!series.length) throw new Error('empty');
+      var body=g('fx-body-'+i); if(body) body.innerHTML=_fxChartSvg(base, quote, series);
+    }).catch(function(){ tryUrl(k+1); });
+  };
+  tryUrl(0);
 }
 function _fxChartSvg(base, quote, series){
   if(!series.length) return '<div style="font-size:12px;color:var(--ink3)">レートを取得できませんでした</div>';
