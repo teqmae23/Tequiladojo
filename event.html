@@ -84,6 +84,7 @@ a{color:var(--gold-d)}
 .ov-div{border:none;border-top:1px solid var(--border);margin:10px 0}
 .fx-clocks{margin:2px 0 8px}
 .clk-title{font-size:12px;font-weight:700;color:var(--ink3);margin-bottom:6px}
+.clk-note{font-size:10px;font-weight:400;color:var(--ink3)}
 .clk-row{display:flex;flex-wrap:wrap;gap:6px}
 .clk{background:var(--cream);border:1px solid var(--border);border-radius:9px;padding:4px 7px;min-width:0}
 .clk-city{font-size:10px;color:var(--ink3);white-space:nowrap}
@@ -721,7 +722,7 @@ function renderClocks(){
   var el=g('fx-clocks'); if(!el) return;
   var ev=_ev||{};
   var list=[{city:'東京(JST)', tz:'Asia/Tokyo', lat:35.68, lon:139.69}].concat((Array.isArray(ev.worldClocks)?ev.worldClocks:[]).slice(0,5));
-  el.innerHTML='<div class="clk-title">🕐 現地時間</div><div class="clk-row">'
+  el.innerHTML='<div class="clk-title">🕐 現地時間 <span class="clk-note">（前日の最高気温/最低気温/平均湿度）</span></div><div class="clk-row">'
     + list.map(function(c,i){ return '<div class="clk"><div class="clk-city">'+esc(c.city||c.tz)+'</div><div class="clk-time" id="clk-t-'+i+'" data-tz="'+esc(c.tz)+'">--:--</div><div class="clk-wx" id="clk-wx-'+i+'"></div></div>'; }).join('')
     + '</div>';
   _tickClocks();
