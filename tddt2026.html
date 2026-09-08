@@ -88,6 +88,7 @@ a{color:var(--gold-d)}
 .clk{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:5px 10px;min-width:88px}
 .clk-city{font-size:11px;color:var(--ink3);white-space:nowrap}
 .clk-time{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.clk-wx{font-size:10px;color:var(--ink3);white-space:nowrap;margin-top:1px}
 .fx-charts{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
 .fx-card{flex:1 1 260px;min-width:0;background:var(--cream);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
 .fx-hd{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:2px}
@@ -714,11 +715,36 @@ function initIntlWidgets(){
 function renderClocks(){
   var el=g('fx-clocks'); if(!el) return;
   var ev=_ev||{};
-  var list=[{city:'東京(JST)', tz:'Asia/Tokyo'}].concat((Array.isArray(ev.worldClocks)?ev.worldClocks:[]).slice(0,5));
+  var list=[{city:'東京(JST)', tz:'Asia/Tokyo', lat:35.68, lon:139.69}].concat((Array.isArray(ev.worldClocks)?ev.worldClocks:[]).slice(0,5));
   el.innerHTML='<div class="clk-title">🕐 現地時間</div><div class="clk-row">'
-    + list.map(function(c,i){ return '<div class="clk"><div class="clk-city">'+esc(c.city||c.tz)+'</div><div class="clk-time" id="clk-t-'+i+'" data-tz="'+esc(c.tz)+'">--:--</div></div>'; }).join('')
+    + list.map(function(c,i){ return '<div class="clk"><div class="clk-city">'+esc(c.city||c.tz)+'</div><div class="clk-time" id="clk-t-'+i+'" data-tz="'+esc(c.tz)+'">--:--</div><div class="clk-wx" id="clk-wx-'+i+'"></div></div>'; }).join('')
     + '</div>';
   _tickClocks();
+  _loadClockWx(list);
+}
+// 各都市の前日の最高/最低気温・平均湿度（Open-Meteo・無料/キー不要）
+function _loadClockWx(list){
+  list.forEach(function(c,i){
+    if(c.lat==null||c.lon==null) return;
+    var tz=c.tz||'auto';
+    var url='https://api.open-meteo.com/v1/forecast?latitude='+encodeURIComponent(c.lat)+'&longitude='+encodeURIComponent(c.lon)
+      +'&daily=temperature_2m_max,temperature_2m_min&hourly=relative_humidity_2m&past_days=2&forecast_days=1&timezone=auto';
+    fetch(url).then(function(r){ return r.json(); }).then(function(d){
+      var y=new Date(Date.now()-86400000);
+      var ymd=new Intl.DateTimeFormat('en-CA',{timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit'}).format(y);
+      var hi=null, lo=null;
+      if(d.daily&&d.daily.time){ var di=d.daily.time.indexOf(ymd); if(di>=0){ hi=d.daily.temperature_2m_max[di]; lo=d.daily.temperature_2m_min[di]; } }
+      var hum=null;
+      if(d.hourly&&d.hourly.time&&d.hourly.relative_humidity_2m){
+        var sum=0,n=0;
+        d.hourly.time.forEach(function(t,idx){ if(String(t).slice(0,10)===ymd){ var v=d.hourly.relative_humidity_2m[idx]; if(v!=null){ sum+=v; n++; } } });
+        if(n) hum=Math.round(sum/n);
+      }
+      var el=g('clk-wx-'+i); if(!el) return;
+      if(hi==null&&lo==null&&hum==null){ el.textContent=''; return; }
+      el.innerHTML='<span title="前日の最高／最低気温">🌡'+(hi!=null?Math.round(hi):'—')+'°/'+(lo!=null?Math.round(lo):'—')+'°</span> <span title="前日の平均湿度">💧'+(hum!=null?hum+'%':'—')+'</span>';
+    }).catch(function(){ var el=g('clk-wx-'+i); if(el) el.textContent=''; });
+  });
 }
 function _tickClocks(){
   var els=document.querySelectorAll('#fx-clocks .clk-time'); if(!els.length) return;
