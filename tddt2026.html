@@ -2047,15 +2047,30 @@ function loadBoard(){
   postCol().get().then(function(snap){
     _posts=snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); });
     renderBoard();
+    // 自分の投稿のアイコン/名前が変わっていたら保存も追従（他の閲覧者にも反映）。表示は既に最新。
+    if(_member && _isReal){
+      var _ni=(_mProfile.iconUrl||''), _nn=(_mProfile.nickname||'');
+      _posts.forEach(function(p){
+        if(p.authorUid===_uid && ((p.authorIcon||'')!==_ni || (p.authorNickname||'')!==_nn)){
+          postCol().doc(p.id).set({ authorIcon:_ni, authorNickname:_nn, authorName:(_nn||_memberName||p.authorName||'会員') },{merge:true}).catch(function(){});
+        }
+      });
+    }
   }).catch(function(){ var el=g('board-cont'); if(el) el.innerHTML='<div class="card"><div class="sec">💬 掲示板</div><div style="font-size:12px;color:var(--ink3)">読み込みに失敗しました</div></div>'; });
 }
 function bdTime(p){ try{ var t=p.createdAt&&p.createdAt.toDate?p.createdAt.toDate():null; if(!t)return ''; return t.getFullYear()+'/'+('0'+(t.getMonth()+1)).slice(-2)+'/'+('0'+t.getDate()).slice(-2)+' '+('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2); }catch(e){ return ''; } }
-function bdAvatar(p){ return p.authorIcon?('<img class="bd-av" src="'+esc(p.authorIcon)+'" alt="">'):('<span class="bd-av">'+esc((p.authorName||'？').slice(0,1))+'</span>'); }
+// 投稿者の表示アイコン/名前。自分の投稿は常に最新プロフィールを優先（キャッシュ画像の陳腐化対策）。
+function _bdAuthor(p){
+  if(p.authorUid===_uid && _member){ return { icon:(_mProfile.iconUrl||''), name:(_mProfile.nickname||_memberName||p.authorName||'会員') }; }
+  return { icon:(p.authorIcon||''), name:(p.authorName||'（会員）') };
+}
+function bdAvatar(a){ return a.icon?('<img class="bd-av" src="'+esc(a.icon)+'" alt="">'):('<span class="bd-av">'+esc((a.name||'？').slice(0,1))+'</span>'); }
 function postNode(p, depth){
   var pending=(p.status==='pending');
   var mine=(p.authorUid===_uid);
+  var au=_bdAuthor(p);
   var h='<div class="bd-post'+(pending?' pending':'')+'">'
-    +'<div class="bd-hd">'+bdAvatar(p)+'<div class="bd-meta"><div class="bd-auth">'+esc(p.authorName||'（会員）')+'</div><div class="bd-time">'+esc(bdTime(p))+'</div></div>'+(pending?'<span class="bd-badge">承認待ち</span>':'')+'</div>';
+    +'<div class="bd-hd">'+bdAvatar(au)+'<div class="bd-meta"><div class="bd-auth">'+esc(au.name)+'</div><div class="bd-time">'+esc(bdTime(p))+'</div></div>'+(pending?'<span class="bd-badge">承認待ち</span>':'')+'</div>';
   if(p.title) h+='<div class="bd-ttl">'+esc(p.title)+'</div>';
   if(p.content) h+='<div class="bd-body">'+esc(p.content)+'</div>';
   var atts=Array.isArray(p.attachments)?p.attachments:[];
