@@ -986,14 +986,14 @@ function loadRegCount(id){
 // ── 世界時計・為替レート 設定 ──
 var FX_CCYS=['JPY','USD','EUR','MXN','GBP','AUD','CAD','CHF','CNY','HKD','KRW','SGD','THB','NZD','BRL','ZAR'];
 var WORLD_CITIES=[
-  {city:'東京', tz:'Asia/Tokyo'},{city:'サンフランシスコ', tz:'America/Los_Angeles'},{city:'ロサンゼルス', tz:'America/Los_Angeles'},
-  {city:'メキシコシティ', tz:'America/Mexico_City'},{city:'グアダラハラ', tz:'America/Mexico_City'},{city:'ニューヨーク', tz:'America/New_York'},
-  {city:'ホノルル', tz:'Pacific/Honolulu'},{city:'ロンドン', tz:'Europe/London'},{city:'パリ', tz:'Europe/Paris'},
-  {city:'シンガポール', tz:'Asia/Singapore'},{city:'香港', tz:'Asia/Hong_Kong'},{city:'ソウル', tz:'Asia/Seoul'},
-  {city:'台北', tz:'Asia/Taipei'},{city:'バンコク', tz:'Asia/Bangkok'},{city:'ドバイ', tz:'Asia/Dubai'},{city:'シドニー', tz:'Australia/Sydney'}
+  {city:'東京', tz:'Asia/Tokyo', lat:35.68, lon:139.69},{city:'サンフランシスコ', tz:'America/Los_Angeles', lat:37.77, lon:-122.42},{city:'ロサンゼルス', tz:'America/Los_Angeles', lat:34.05, lon:-118.24},
+  {city:'メキシコシティ', tz:'America/Mexico_City', lat:19.43, lon:-99.13},{city:'グアダラハラ', tz:'America/Mexico_City', lat:20.67, lon:-103.35},{city:'ニューヨーク', tz:'America/New_York', lat:40.71, lon:-74.01},
+  {city:'ホノルル', tz:'Pacific/Honolulu', lat:21.31, lon:-157.86},{city:'ロンドン', tz:'Europe/London', lat:51.51, lon:-0.13},{city:'パリ', tz:'Europe/Paris', lat:48.85, lon:2.35},
+  {city:'シンガポール', tz:'Asia/Singapore', lat:1.35, lon:103.82},{city:'香港', tz:'Asia/Hong_Kong', lat:22.32, lon:114.17},{city:'ソウル', tz:'Asia/Seoul', lat:37.57, lon:126.98},
+  {city:'台北', tz:'Asia/Taipei', lat:25.03, lon:121.57},{city:'バンコク', tz:'Asia/Bangkok', lat:13.76, lon:100.50},{city:'ドバイ', tz:'Asia/Dubai', lat:25.20, lon:55.27},{city:'シドニー', tz:'Australia/Sydney', lat:-33.87, lon:151.21}
 ];
 function _fillEventLists(ev){
-  var clkOpts='<option value="">（なし）</option>'+WORLD_CITIES.map(function(c){ return '<option value="'+esc(c.tz)+'" data-city="'+esc(c.city)+'">'+esc(c.city)+'</option>'; }).join('');
+  var clkOpts='<option value="">（なし）</option>'+WORLD_CITIES.map(function(c){ return '<option value="'+esc(c.tz)+'" data-city="'+esc(c.city)+'" data-lat="'+c.lat+'" data-lon="'+c.lon+'">'+esc(c.city)+'</option>'; }).join('');
   var ccyOpts='<option value="">（なし）</option>'+FX_CCYS.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join('');
   ['f-clock1','f-clock2','f-clock3','f-clock4','f-clock5'].forEach(function(id){ g(id).innerHTML=clkOpts; });
   ['f-fx1-base','f-fx1-quote','f-fx2-base','f-fx2-quote'].forEach(function(id){ g(id).innerHTML=ccyOpts; });
@@ -1014,7 +1014,8 @@ function _readWorldClocks(){
   ['f-clock1','f-clock2','f-clock3','f-clock4','f-clock5'].forEach(function(id){
     var sel=g(id); if(!sel||!sel.value) return;
     var opt=sel.options[sel.selectedIndex];
-    out.push({ city:(opt&&opt.getAttribute('data-city'))||opt.text||sel.value, tz:sel.value });
+    var la=opt&&parseFloat(opt.getAttribute('data-lat')), lo=opt&&parseFloat(opt.getAttribute('data-lon'));
+    out.push({ city:(opt&&opt.getAttribute('data-city'))||opt.text||sel.value, tz:sel.value, lat:(isNaN(la)?null:la), lon:(isNaN(lo)?null:lo) });
   });
   return out;
 }
