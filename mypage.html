@@ -489,7 +489,7 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('login-screen').style.display='none';
     document.getElementById('main-screen').style.display='block';
     loadUnreadNewsBanner(user); // 未読ニュース件数（非同期・メイン処理を待たせない）
-    loadEventBanners(); // 公開中イベントのバナー（非同期）
+    // 公開中イベントのバナーは会員確定後（initMyPage内）に呼ぶ。参加者判定のため。
     await initMyPage(user);
   }else{
     var _hs2=document.getElementById('auth-hide-style'); if(_hs2)_hs2.remove();
@@ -528,11 +528,29 @@ async function loadUnreadNewsBanner(user){
 }
 
 // ─── 公開中イベントのバナー ───
-async function loadEventBanners(){
+// この会員がイベントバナーを閲覧できるか。
+// 公開イベント(eventType='open' または種別未設定の旧データ)は全会員。
+// 招待制(eventType が open 以外)は参加者/家族閲覧者のみ。
+function _evVisibleToMember(ev, mids, uid){
+  const t=ev.eventType||'';
+  if(t==='' || t==='open') return true;
+  const pids=(Array.isArray(ev.participantIds)?ev.participantIds:[]).map(String);
+  if(mids.some(m=>m && pids.indexOf(m)>=0)) return true;
+  const pp=(Array.isArray(ev.participantsPublic)?ev.participantsPublic:[]);
+  if(pp.some(p=>(uid && String(p.uid||'')===uid) || mids.some(m=>m && String(p.memberId||'')===m))) return true;
+  const fam=(Array.isArray(ev.familyViewerIds)?ev.familyViewerIds:[]).map(String);
+  if(mids.some(m=>m && fam.indexOf(m)>=0)) return true;
+  return false;
+}
+async function loadEventBanners(memberDoc){
   try{
     const box=document.getElementById('event-banners'); if(!box) return;
+    const mids=[].concat(memberDoc?[memberDoc.displayId, memberDoc.memberId, memberDoc.id]:[]).filter(Boolean).map(String);
+    const uid=(memberDoc&&memberDoc.authUid)?String(memberDoc.authUid):'';
     const snap=await db.collection('events').where('published','==',true).get();
-    const evs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+    let evs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+    // 招待制イベントは参加者/家族のみに表示（非参加者には出さない）
+    evs=evs.filter(ev=>_evVisibleToMember(ev, mids, uid));
     // 開始日が新しい順
     evs.sort((a,b)=>String(b.startDate||'').localeCompare(String(a.startDate||'')));
     if(!evs.length){ box.innerHTML=''; return; }
@@ -662,6 +680,8 @@ async function initMyPage(user){
       }catch(e){console.warn('status auto-fix error:',e);}
     }
     if(_previewMemberDoc){ memberDoc=_previewMemberDoc; memberId=_previewMemberId; }
+    // 公開中イベントのバナー（この会員が閲覧できるものだけ表示）
+    loadEventBanners(memberDoc);
     // 管理者プレビュー: pendingメンバーは自動的にactiveに修正
     if(_previewMemberDoc && _previewMemberDoc.status==='pending'){
       try{
