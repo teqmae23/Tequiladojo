@@ -174,6 +174,12 @@ tbody tr:hover{background:rgba(200,146,30,.025)}
       </div>
     </div>
 
+    <!-- 会員からの予約申請（承認待ち） -->
+    <div class="card" id="req-card" style="display:none;margin-bottom:14px">
+      <div style="font-weight:700;margin-bottom:10px">🔔 会員からの予約申請（承認待ち <span id="req-count">0</span>件）</div>
+      <div id="req-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
     <!-- 一覧テーブル -->
     <div class="card">
       <div class="toolbar">
@@ -350,6 +356,7 @@ AuthRole.requireOwner(auth,
     g("app").style.display="block";
     g("temail").textContent=user.email;
     loadReservations();
+    loadReservationRequests();
     loadMembers();
   },
   function(){
@@ -641,6 +648,83 @@ g("btn-save-rsv").addEventListener("click",function(){
   })
   .catch(function(e){ toast("保存失敗: "+e.message,"err"); });
 });
+
+// ── 会員からの予約申請（承認待ち）────────────────────────────
+var pendingRequests = [];
+function loadReservationRequests(){
+  db.collection("reservationRequests").where("status","==","pending").get()
+    .then(function(snap){
+      pendingRequests = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      pendingRequests.sort(function(a,b){ return String(a.reservationDate||"").localeCompare(String(b.reservationDate||"")); });
+      renderRequests();
+    })
+    .catch(function(e){ var c=g("req-card"); if(c) c.style.display="none"; });
+}
+function renderRequests(){
+  var card=g("req-card"), list=g("req-list"), cnt=g("req-count");
+  if(!card||!list) return;
+  if(!pendingRequests.length){ card.style.display="none"; return; }
+  card.style.display="";
+  if(cnt) cnt.textContent=pendingRequests.length;
+  list.innerHTML=pendingRequests.map(function(r){
+    var meta=fmtDate(r.reservationDate)+"　"+fmtTime(r.startTime)+"〜"+fmtTime(r.endTime)+"　"+(r.guests||"?")+"名"+(r.memo?("　"+escHtml(r.memo)):"");
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border:1px solid rgba(160,130,100,.3);border-radius:8px">'
+      +'<div style="flex:1;min-width:160px"><div style="font-weight:600">'+escHtml(r.memberName||"（会員）")+'（'+escHtml(r.memberId||"")+'）</div>'
+      +'<div style="font-size:12px;opacity:.85">'+meta+'</div></div>'
+      +'<button class="btn bp" data-approve="'+escHtml(r.id)+'">承認</button>'
+      +'<button class="btn bd" data-reject="'+escHtml(r.id)+'">却下</button></div>';
+  }).join("");
+}
+g("req-list").addEventListener("click",function(e){
+  var a=e.target.getAttribute&&e.target.getAttribute("data-approve");
+  var rj=e.target.getAttribute&&e.target.getAttribute("data-reject");
+  if(a) approveRequest(a); else if(rj) rejectRequest(rj);
+});
+function approveRequest(id){
+  var req=pendingRequests.find(function(x){ return x.id===id; }); if(!req) return;
+  var date=req.reservationDate, start=req.startTime, end=req.endTime;
+  // 貸切予約と時間が重なる場合は承認不可
+  var conflict=reservations.find(function(r){
+    if(r.reservationDate!==date) return false;
+    if(!timeOverlap(start,end,r.startTime,r.endTime)) return false;
+    return isCharter(r);
+  });
+  if(conflict){ toast("その時間帯は貸切予約("+conflict.id+")のため承認できません","err"); return; }
+  var newId=genRsvId();
+  while(reservations.some(function(r){ return r.id===newId; })){ rsvSeqCounter++; newId=genRsvId(); }
+  rsvSeqCounter++;
+  var cust=(String(req.memberId||"").replace(/\D/g,"")||"0").slice(-6);
+  journaledSet("reservations",newId,{
+    reservationId:  newId,
+    reservationDate: date,
+    startTime:      start,
+    endTime:        end,
+    customerCode:   cust.padStart(6,"0"),
+    guests:         parseInt(req.guests)||0,
+    charterType:    0,
+    memo:           req.memo||null,
+    memberId:       req.memberId||null,
+    memberName:     req.memberName||null,
+    fromRequestId:  req.id,
+    createdAt:      firebase.firestore.FieldValue.serverTimestamp()
+  },{merge:true})
+  .then(function(){
+    return db.collection("reservationRequests").doc(id).update({
+      status:"approved", reservationId:newId,
+      approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  })
+  .then(function(){ toast("承認しました（予約ID: "+newId+"）"); loadReservations(); loadReservationRequests(); })
+  .catch(function(e){ toast("承認失敗: "+e.message,"err"); });
+}
+function rejectRequest(id){
+  if(!confirm("この予約申請を却下（見送り）しますか？")) return;
+  db.collection("reservationRequests").doc(id).update({
+    status:"rejected", rejectedAt: firebase.firestore.FieldValue.serverTimestamp()
+  })
+  .then(function(){ toast("却下しました"); loadReservationRequests(); })
+  .catch(function(e){ toast("却下失敗: "+e.message,"err"); });
+}
 
 // ── CSV エクスポート ──────────────────────────────────────────
 g("btn-export").addEventListener("click",function(){
