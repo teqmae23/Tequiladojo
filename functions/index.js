@@ -645,6 +645,7 @@ exports.getStoreStatus = functions.region('asia-northeast1')
       }
       if (out.status === 'open') {
         if (sd.sessionDate) {
+          out.sessionDate = sd.sessionDate; // 現在の営業セッション日（会員ページの「来場中」判定に使用）
           const vs = await db.collection('visits').where('visitDate', '==', sd.sessionDate).get();
           out.active = vs.docs.filter((d) => !d.data().checkoutTime && !d.data().isStaff).length;
         }

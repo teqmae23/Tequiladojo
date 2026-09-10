@@ -1657,10 +1657,11 @@ async function loadVisitStatus(memberId){
   try{
     var act=await fetchActivity(memberId);
     var vs=(act.visits||[]).slice();
-    // 「来場中」は本日の未退場のみ。過去日の退場漏れ記録で常時「来場中」になるのを防ぐ。
-    var _n=new Date(), _p=function(x){return (x<10?'0':'')+x;};
-    var _today=String(_n.getFullYear()).slice(2)+_p(_n.getMonth()+1)+_p(_n.getDate());
-    var active=vs.find(v=>!v.checkoutTime && v.visitDate===_today);
+    // 「来場中」は「店舗が現在営業中で、その営業セッション日に未退場の来場がある」場合のみ。
+    // 店舗の営業状態と無関係に未退場記録で判定すると、退場漏れの過去記録で常時「来場中」になる。
+    var _openSession='';
+    try{ var _ss=await fbFunctions.httpsCallable('getStoreStatus')({}); var _sd=(_ss&&_ss.data)||{}; if(_sd.status==='open') _openSession=_sd.sessionDate||''; }catch(e){}
+    var active=_openSession?vs.find(v=>!v.checkoutTime && v.visitDate===_openSession):null;
     if(active){
       var t=active.visitTime||'';
       var tStr=t.length>=4?t.slice(0,2)+':'+t.slice(2,4):'';
