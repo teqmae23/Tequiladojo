@@ -150,7 +150,7 @@ async function assertStaff(context) {
 // 会員向けページ（mypage/tastinglog/member_map）はここ経由で本人分のみ取得する
 exports.getMemberActivity = functions.region('asia-northeast1')
   .https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.firebase.sign_in_provider === 'anonymous') {
+    if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
       throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
     }
     // 対象会員の解決（previewMemberId はスタッフのみ指定可能）
@@ -172,74 +172,87 @@ exports.getMemberActivity = functions.region('asia-northeast1')
     const idSet = new Set([memberId]);
     if (memberData.memberId) idSet.add(String(memberData.memberId));
     if (memberData.displayId) idSet.add(String(memberData.displayId));
-    const visitsMap = {};
-    for (const mid of idSet) {
-      const vs = await db.collection('visits').where('memberId', '==', mid).get();
-      vs.forEach((d) => { visitsMap[d.id] = Object.assign({ id: d.id }, d.data()); });
-    }
-    const visits = Object.values(visitsMap);
-    const visitIds = visits.map((v) => v.id);
 
-    // orders: visitKey（新）/visitId（旧）両対応
-    const ordersMap = {};
-    for (let i = 0; i < visitIds.length; i += 30) {
-      const chunk = visitIds.slice(i, i + 30);
-      const s1 = await db.collection('orders').where('visitKey', 'in', chunk).get();
-      s1.forEach((d) => { ordersMap[d.id] = Object.assign({ id: d.id }, d.data()); });
-      const s2 = await db.collection('orders').where('visitId', 'in', chunk).get();
-      s2.forEach((d) => { ordersMap[d.id] = Object.assign({ id: d.id }, d.data()); });
-    }
-    const orders = Object.values(ordersMap);
+    // 集計は段階的に行い、途中で失敗しても（例: 特定コレクションのクエリ例外）
+    // 500(INTERNAL)にせず、取得できた分だけ返す。少なくとも来場履歴(visits)は表示できる。
+    let visits = []; let orders = []; let blindResults = []; let batchOrders = [];
+    let visitMemberMap = {}; let memberNames = {};
+    try {
+      const visitsMap = {};
+      for (const mid of idSet) {
+        const vs = await db.collection('visits').where('memberId', '==', mid).get();
+        vs.forEach((d) => { visitsMap[d.id] = Object.assign({ id: d.id }, d.data()); });
+      }
+      visits = Object.values(visitsMap);
+      const visitIds = visits.map((v) => v.id);
 
-    // blindResults: 自分の注文が属するバッチ全員分（正解表示・同席者表示に必要）
-    const batchIds = [...new Set(orders.map((o) => o.batchId).filter(Boolean))];
-    const blindResults = [];
-    for (let i = 0; i < batchIds.length; i += 30) {
-      const s = await db.collection('blindResults').where('batchId', 'in', batchIds.slice(i, i + 30)).get();
-      s.forEach((d) => {
-        const r = Object.assign({ id: d.id }, d.data());
-        if (r.answeredAt && r.answeredAt.toMillis) r.answeredAt = r.answeredAt.toMillis();
-        blindResults.push(r);
-      });
-    }
+      // orders: visitKey（新）/visitId（旧）両対応
+      const ordersMap = {};
+      for (let i = 0; i < visitIds.length; i += 30) {
+        const chunk = visitIds.slice(i, i + 30);
+        if (!chunk.length) continue;
+        const s1 = await db.collection('orders').where('visitKey', 'in', chunk).get();
+        s1.forEach((d) => { ordersMap[d.id] = Object.assign({ id: d.id }, d.data()); });
+        const s2 = await db.collection('orders').where('visitId', 'in', chunk).get();
+        s2.forEach((d) => { ordersMap[d.id] = Object.assign({ id: d.id }, d.data()); });
+      }
+      orders = Object.values(ordersMap);
 
-    // 同席情報: 同一バッチ内の他会員の注文（visitKey/batchIdのみ返す）
-    const myVkSet = new Set(visitIds);
-    const batchOrders = [];
-    for (let i = 0; i < batchIds.length; i += 30) {
-      const s = await db.collection('orders').where('batchId', 'in', batchIds.slice(i, i + 30)).get();
-      s.forEach((d) => {
-        const o = d.data();
-        // 奢りの支払注文(isGiftPayer)は「支払のみ・本人は飲んでいない」ため同席者に数えない。
-        // 本人も飲む場合は別途 isGiftSelf の0円注文があり、そちらが同席者として拾われる。
-        if (o.isGiftPayer) return;
-        const vk = o.visitKey || o.visitId;
-        if (vk && !myVkSet.has(vk)) batchOrders.push({ visitKey: vk, batchId: o.batchId });
-      });
-    }
+      // blindResults: 自分の注文が属するバッチ全員分（正解表示・同席者表示に必要）
+      const batchIds = [...new Set(orders.map((o) => o.batchId).filter(Boolean))];
+      for (let i = 0; i < batchIds.length; i += 30) {
+        const chunk = batchIds.slice(i, i + 30);
+        if (!chunk.length) continue;
+        const s = await db.collection('blindResults').where('batchId', 'in', chunk).get();
+        s.forEach((d) => {
+          const r = Object.assign({ id: d.id }, d.data());
+          if (r.answeredAt && r.answeredAt.toMillis) r.answeredAt = r.answeredAt.toMillis();
+          blindResults.push(r);
+        });
+      }
 
-    // 他visitKey → memberId、memberId → ニックネーム
-    const otherVks = [...new Set([
-      ...batchOrders.map((b) => b.visitKey),
-      ...blindResults.map((r) => r.visitKey || r.visitId).filter((vk) => vk && !myVkSet.has(vk)),
-    ])];
-    const visitMemberMap = {};
-    for (let i = 0; i < otherVks.length; i += 100) {
-      const refs = otherVks.slice(i, i + 100).map((vk) => db.collection('visits').doc(String(vk)));
-      const snaps = await db.getAll(...refs);
-      snaps.forEach((s) => { if (s.exists && s.data().memberId) visitMemberMap[s.id] = s.data().memberId; });
-    }
-    const otherMids = [...new Set([
-      ...Object.values(visitMemberMap),
-      ...blindResults.map((r) => r.customerId).filter(Boolean),
-    ])].filter((m) => m && m !== memberId);
-    const memberNames = {};
-    for (let i = 0; i < otherMids.length; i += 100) {
-      const refs = otherMids.slice(i, i + 100).map((m) => db.collection('members').doc(String(m)));
-      const snaps = await db.getAll(...refs);
-      snaps.forEach((s) => {
-        if (s.exists) { const md = s.data(); memberNames[s.id] = md.nickname || md.name || s.id; }
-      });
+      // 同席情報: 同一バッチ内の他会員の注文（visitKey/batchIdのみ返す）
+      const myVkSet = new Set(visitIds);
+      for (let i = 0; i < batchIds.length; i += 30) {
+        const chunk = batchIds.slice(i, i + 30);
+        if (!chunk.length) continue;
+        const s = await db.collection('orders').where('batchId', 'in', chunk).get();
+        s.forEach((d) => {
+          const o = d.data();
+          // 奢りの支払注文(isGiftPayer)は「支払のみ・本人は飲んでいない」ため同席者に数えない。
+          // 本人も飲む場合は別途 isGiftSelf の0円注文があり、そちらが同席者として拾われる。
+          if (o.isGiftPayer) return;
+          const vk = o.visitKey || o.visitId;
+          if (vk && !myVkSet.has(vk)) batchOrders.push({ visitKey: vk, batchId: o.batchId });
+        });
+      }
+
+      // 他visitKey → memberId、memberId → ニックネーム
+      const otherVks = [...new Set([
+        ...batchOrders.map((b) => b.visitKey),
+        ...blindResults.map((r) => r.visitKey || r.visitId).filter((vk) => vk && !myVkSet.has(vk)),
+      ])].filter((vk) => vk != null && vk !== '');
+      for (let i = 0; i < otherVks.length; i += 100) {
+        const refs = otherVks.slice(i, i + 100).map((vk) => db.collection('visits').doc(String(vk)));
+        if (!refs.length) continue;
+        const snaps = await db.getAll(...refs);
+        snaps.forEach((s) => { if (s.exists && s.data().memberId) visitMemberMap[s.id] = s.data().memberId; });
+      }
+      const otherMids = [...new Set([
+        ...Object.values(visitMemberMap),
+        ...blindResults.map((r) => r.customerId).filter(Boolean),
+      ])].filter((m) => m != null && m !== '' && m !== memberId);
+      for (let i = 0; i < otherMids.length; i += 100) {
+        const refs = otherMids.slice(i, i + 100).map((m) => db.collection('members').doc(String(m)));
+        if (!refs.length) continue;
+        const snaps = await db.getAll(...refs);
+        snaps.forEach((s) => {
+          if (s.exists) { const md = s.data(); memberNames[s.id] = md.nickname || md.name || s.id; }
+        });
+      }
+    } catch (e) {
+      // 例外の詳細はサーバーログに残し、画面には部分結果を返す（INTERNALを表示しない）
+      console.error('[getMemberActivity] aggregation failed for member ' + memberId + ':', (e && e.stack) || e);
     }
 
     return { memberId, visits, orders, blindResults, batchOrders, visitMemberMap, memberNames };
@@ -293,7 +306,7 @@ function writeServerJournal(op, col, docId, before, after, page) {
 // ── 会員本人のデポジット履歴を返す（depositData はスタッフ限定読み取りのため） ──
 exports.getMyDepositHistory = functions.region('asia-northeast1')
   .https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.firebase.sign_in_provider === 'anonymous') {
+    if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
       throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
     }
     let memberId = null;
@@ -877,7 +890,7 @@ async function resolveValidCustomerId(stripe, memberRef, member, memberId) {
 exports.createSubscriptionCheckout = functions
   .runWith({ secrets: ['STRIPE_SECRET_KEY'] })
   .https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.firebase.sign_in_provider === 'anonymous') {
+    if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
       throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
     }
     const stripe = require('stripe')(stripeSecretKey.value());
@@ -961,7 +974,7 @@ exports.createSubscriptionCheckout = functions
 exports.createCustomerPortal = functions
   .runWith({ secrets: ['STRIPE_SECRET_KEY'] })
   .https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.firebase.sign_in_provider === 'anonymous') {
+    if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
       throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
     }
     const stripe = require('stripe')(stripeSecretKey.value());
@@ -1020,7 +1033,7 @@ async function memberHasSeminarAccess(memberId, member, seminar) {
 }
 
 async function requireMember(context) {
-  if (!context.auth || context.auth.token.firebase.sign_in_provider === 'anonymous') {
+  if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
     throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
   }
   const msnap = await db.collection('members').where('authUid', '==', context.auth.uid).limit(1).get();
@@ -1342,7 +1355,7 @@ exports.manageTestUser = functions.region('asia-northeast1')
 
 // 認証済み会員本人を authUid から解決する
 async function resolveMember(context) {
-  if (!context.auth || context.auth.token.firebase.sign_in_provider === 'anonymous') {
+  if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
     throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
   }
   const snap = await db.collection('members')
@@ -1436,26 +1449,32 @@ exports.requestCheckin = functions.region('asia-northeast1')
 // ── 会員の現在の来店状況（注文可否判定用） ──
 exports.getMyVisitStatus = functions.region('asia-northeast1')
   .https.onCall(async (data, context) => {
-    const member = await resolveMember(context);
-    const store = await getStoreState();
-    const visitKey = store.open ? await findActiveVisit(member, store.sessionDate) : null;
-    let pending = false;
-    if (store.open && store.sessionDate) {
-      const pr = await db.collection('checkinRequests')
-        .where('memberId', '==', member.id)
-        .where('sessionDate', '==', store.sessionDate)
-        .where('status', '==', 'pending').limit(1).get();
-      pending = !pr.empty;
+    try {
+      const member = await resolveMember(context);
+      const store = await getStoreState();
+      const visitKey = store.open ? await findActiveVisit(member, store.sessionDate) : null;
+      let pending = false;
+      if (store.open && store.sessionDate) {
+        const pr = await db.collection('checkinRequests')
+          .where('memberId', '==', member.id)
+          .where('sessionDate', '==', store.sessionDate)
+          .where('status', '==', 'pending').limit(1).get();
+        pending = !pr.empty;
+      }
+      return {
+        storeOpen: store.open,
+        sessionDate: store.sessionDate,
+        checkedIn: !!visitKey,
+        visitKey: visitKey || null,
+        pending,
+        memberId: member.id,
+        memberName: member.data.nickname || member.data.name || member.id,
+      };
+    } catch (e) {
+      if (e instanceof functions.https.HttpsError) throw e;
+      console.error('[getMyVisitStatus] error:', (e && e.stack) || e);
+      throw new functions.https.HttpsError('internal', 'visit-status: ' + ((e && e.message) || e));
     }
-    return {
-      storeOpen: store.open,
-      sessionDate: store.sessionDate,
-      checkedIn: !!visitKey,
-      visitKey: visitKey || null,
-      pending,
-      memberId: member.id,
-      memberName: member.data.nickname || member.data.name || member.id,
-    };
   });
 
 // ── 会員のオンライン注文（来店確定者のみ） ──
@@ -1729,7 +1748,7 @@ exports.syncTequilaLogFromOrder = functions.region('asia-northeast1')
 // - スタッフは memberId 指定で任意会員分を取り込める。
 exports.backfillTequilaLogs = functions.region('asia-northeast1')
   .https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.firebase.sign_in_provider === 'anonymous') {
+    if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
       throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
     }
     const claimRole = context.auth.token.role;
