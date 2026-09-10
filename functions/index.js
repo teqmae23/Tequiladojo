@@ -168,6 +168,10 @@ function jsonSafe(v) {
 
 exports.getMemberActivity = functions.region('asia-northeast1')
   .https.onCall(async (data, context) => {
+    // 一時診断: 静的なクリーンJSONを即返す。これでも500ならハンドラ未実行＝基盤側の問題、
+    // 正常に返れば本体（クエリ/データ/シリアライズ）が原因、と切り分けられる。
+    return { memberId: (context && context.auth && context.auth.uid) || 'diag', visits: [], orders: [], blindResults: [], batchOrders: [], visitMemberMap: {}, memberNames: {}, __diag: 'stub-v1' };
+   /* eslint-disable no-unreachable */
    try {
     if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
       throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
