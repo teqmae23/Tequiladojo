@@ -169,11 +169,11 @@ input.nom-fi{width:50px;font-family:var(--mono);}
       <span class="fl">NOM</span>
       <input class="fi nom-fi" id="f-nom" placeholder="1079" maxlength="4" oninput="render()">
       <span class="fl" style="margin-left:4px">クラス</span>
-      <button class="cls-btn on" data-c="01" onclick="toggleCls(this)">B</button>
-      <button class="cls-btn on" data-c="02" onclick="toggleCls(this)">J</button>
-      <button class="cls-btn on" data-c="03" onclick="toggleCls(this)">R</button>
-      <button class="cls-btn on" data-c="04" onclick="toggleCls(this)">A</button>
-      <button class="cls-btn on" data-c="05" onclick="toggleCls(this)">X</button>
+      <button class="cls-btn on" data-c="1" onclick="toggleCls(this)">B</button>
+      <button class="cls-btn on" data-c="2" onclick="toggleCls(this)">J</button>
+      <button class="cls-btn on" data-c="3" onclick="toggleCls(this)">R</button>
+      <button class="cls-btn on" data-c="4" onclick="toggleCls(this)">A</button>
+      <button class="cls-btn on" data-c="5" onclick="toggleCls(this)">X</button>
     </div>
     <!-- 絞り込み行 -->
     <div class="frow">
@@ -221,8 +221,15 @@ var auth=firebase.auth();
 var db=firebase.firestore();
 
 var bottles=[], brands={}, drunkIds=new Set(), japanIds=new Set();
-var CLS={'01':'B','02':'J','03':'R','04':'A','05':'X'};
-var activeCls=new Set(['01','02','03','04','05']);
+// classId は2桁（カテゴリ1桁 + クラス1桁）。2桁目でB/J/R/A/X判定（menu/home_order準拠）。
+// 100%アガベ(カテゴリ0)は 01〜05、Mixto(カテゴリ1)は 11〜15 のため、
+// 2桁目（クラス桁）で判定しないと Mixto がすべて「?」になる。
+var CLS={'1':'B','2':'J','3':'R','4':'A','5':'X'};
+var activeCls=new Set(['1','2','3','4','5']);
+function clsDigit(b){
+  if(b.classId!=null&&b.classId!==''){ var c=String(b.classId); return c.length>=2?c.charAt(1):c; }
+  var s=String(b.id||b.bottleId||''); return s.length>=9?s.charAt(8):'';
+}
 
 function doLogin(){
   var em=document.getElementById('l-em').value;
@@ -298,7 +305,7 @@ async function load(user){
   bottles=bsnap.docs.map(function(d){return Object.assign({id:d.id},d.data());})
     .filter(function(b){return b.servingStatus!==1&&b.servingStatus!=='1';})
     .sort(function(a,b){
-      var ca=String(a.classId||'9'),cb=String(b.classId||'9');
+      var ca=clsDigit(a)||'9',cb=clsDigit(b)||'9';
       if(ca!==cb)return ca.localeCompare(cb);
       return (a.bottleEs||'').localeCompare(b.bottleEs||'');
     });
@@ -394,7 +401,7 @@ function render(){
 
   var list=bottles.slice();
   if(nom) list=list.filter(function(b){return (b.brandId||'').startsWith(nom);});
-  if(activeCls.size<5) list=list.filter(function(b){return activeCls.has(String(b.classId||''));});
+  if(activeCls.size<5) list=list.filter(function(b){return activeCls.has(clsDigit(b));});
   if(abv==='n') list=list.filter(function(b){return parseFloat(b.abv||0)<=40;});
   if(abv==='h') list=list.filter(function(b){return parseFloat(b.abv||0)>=41;});
   if(add!=='') list=list.filter(function(b){return String(b.additive||'0')===add;});
@@ -416,7 +423,7 @@ function render(){
   // ソートキー値取得
   function keyVal(b,key){
     if(key==='nom') return (b.brandId||'').slice(0,4);
-    if(key==='cls') return String(b.classId||'9');
+    if(key==='cls') return clsDigit(b)||'9';
     if(key==='brand') return (brands[b.brandId]&&(brands[b.brandId].brandEs||brands[b.brandId].brandJa))||'';
     if(key==='abv') return String(parseFloat(b.abv||0)+1000);
     if(key==='price') return String(parseFloat(b.price||b.unitPrice||0)+100000);
@@ -436,8 +443,10 @@ function render(){
   grid.innerHTML=list.map(function(b){
     var d=drunkIds.has(b.id);
     var clsCode=String(b.classId||'');
-    var cl=CLS[clsCode]||'?';
-    var badgeCls='cls-badge b'+clsCode;
+    var cd=clsDigit(b);
+    var cl=CLS[cd]||'?';
+    // バッジ色/形はカテゴリ+クラスで決定（b0X=100%アガベ・角丸／b1X=Mixto・角）
+    var badgeCls='cls-badge b'+(clsCode.charAt(0)||'0')+(cd||'0');
     var br=brands[b.brandId];
     var brName=br?(br.brandEs||br.brandJa||''):'';
     var nom4=(b.brandId||'').slice(0,4);
