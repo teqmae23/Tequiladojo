@@ -41,6 +41,26 @@ def api(method, path, body=None):
         raise
 
 
+def find_release(prefix, prefer=None):
+    """既存リリースのうち、リリースID（releases/以降）が prefix で始まるものを探す。
+    prefer（既定のリリースID）が実在すればそれを優先。Storageルールのリリース名は
+    バケット名を含む（例 firebase.storage/<bucket>）ため、バケット名を推測せず
+    実在のリリースへ確実に反映するのに使う。"""
+    try:
+        resp = api("GET", "/projects/{}/releases?pageSize=300".format(PROJECT))
+    except urllib.error.HTTPError:
+        return None
+    matches = []
+    for r in (resp.get("releases") or []):
+        name = r.get("name", "")
+        rel_id = name.split("/releases/", 1)[-1] if "/releases/" in name else ""
+        if rel_id.startswith(prefix):
+            matches.append(rel_id)
+    if prefer and prefer in matches:
+        return prefer
+    return matches[0] if matches else None
+
+
 def main():
     if not TOKEN:
         sys.stderr.write("GOOGLE_OAUTH_ACCESS_TOKEN が未設定です\n")
@@ -48,6 +68,17 @@ def main():
 
     with open(RULES_FILE, "r", encoding="utf-8") as f:
         source = f.read()
+
+    # リリースIDの決定（Storage等はバケット名を含むため、プレフィックスから実在リリースを検出）
+    release_id = RELEASE
+    prefix = os.environ.get("RELEASE_DISCOVER_PREFIX", "")
+    if prefix:
+        found = find_release(prefix, RELEASE)
+        if found:
+            release_id = found
+            print("既存リリースを検出: " + release_id)
+        else:
+            print("プレフィックス一致リリースが無いため既定を使用: " + release_id)
 
     # 1) ルールセットを作成
     ruleset = api(
@@ -59,21 +90,21 @@ def main():
     print("作成したルールセット: " + ruleset_name)
 
     # 2) リリースを更新して新しいルールセットを本番へ反映
-    release_path = "/projects/{}/releases/{}".format(PROJECT, RELEASE)
+    release_path = "/projects/{}/releases/{}".format(PROJECT, release_id)
     body = {
         "release": {
-            "name": "projects/{}/releases/{}".format(PROJECT, RELEASE),
+            "name": "projects/{}/releases/{}".format(PROJECT, release_id),
             "rulesetName": ruleset_name,
         }
     }
     try:
         api("PATCH", release_path, body)
-        print("リリースを更新しました: " + RELEASE)
+        print("リリースを更新しました: " + release_id)
     except urllib.error.HTTPError as e:
         if e.code == 404:
             # リリースが存在しない場合は新規作成
             api("POST", "/projects/{}/releases".format(PROJECT), body["release"])
-            print("リリースを新規作成しました: " + RELEASE)
+            print("リリースを新規作成しました: " + release_id)
         else:
             raise
     return 0
