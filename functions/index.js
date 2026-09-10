@@ -148,6 +148,24 @@ async function assertStaff(context) {
 // ── 会員本人の来店・注文・ブラインド結果を返す ─────────────────
 // visits/orders はセキュリティルールでスタッフ限定読み取りのため、
 // 会員向けページ（mypage/tastinglog/member_map）はここ経由で本人分のみ取得する
+// Firestore の Timestamp / GeoPoint / DocumentReference などは callable の応答JSONに
+// そのまま含めると、ハンドラの try/catch の「外側」（フレームワークのシリアライズ処理）で
+// 失敗し、捕捉不能な INTERNAL になる。返却前に必ずプレーンなJSONへ再帰変換する。
+function jsonSafe(v) {
+  if (v === null || v === undefined) return v;
+  if (typeof v !== 'object') return v;
+  const FS = admin.firestore;
+  if (FS && FS.Timestamp && v instanceof FS.Timestamp) return v.toMillis();
+  if (typeof v.toDate === 'function' && typeof v.toMillis === 'function') return v.toMillis();
+  if (v instanceof Date) return v.getTime();
+  if (FS && FS.GeoPoint && v instanceof FS.GeoPoint) return { lat: v.latitude, lng: v.longitude };
+  if (FS && FS.DocumentReference && v instanceof FS.DocumentReference) return v.path;
+  if (Array.isArray(v)) return v.map(jsonSafe);
+  const out = {};
+  Object.keys(v).forEach((k) => { const s = jsonSafe(v[k]); if (s !== undefined) out[k] = s; });
+  return out;
+}
+
 exports.getMemberActivity = functions.region('asia-northeast1')
   .https.onCall(async (data, context) => {
    try {
@@ -256,7 +274,7 @@ exports.getMemberActivity = functions.region('asia-northeast1')
       console.error('[getMemberActivity] aggregation failed for member ' + memberId + ':', (e && e.stack) || e);
     }
 
-    return { memberId, visits, orders, blindResults, batchOrders, visitMemberMap, memberNames };
+    return jsonSafe({ memberId, visits, orders, blindResults, batchOrders, visitMemberMap, memberNames });
    } catch (e) {
      if (e instanceof functions.https.HttpsError) throw e;
      console.error('[getMemberActivity] error:', (e && e.stack) || e);
@@ -1467,7 +1485,7 @@ exports.getMyVisitStatus = functions.region('asia-northeast1')
           .where('status', '==', 'pending').limit(1).get();
         pending = !pr.empty;
       }
-      return {
+      return jsonSafe({
         storeOpen: store.open,
         sessionDate: store.sessionDate,
         checkedIn: !!visitKey,
@@ -1475,7 +1493,7 @@ exports.getMyVisitStatus = functions.region('asia-northeast1')
         pending,
         memberId: member.id,
         memberName: member.data.nickname || member.data.name || member.id,
-      };
+      });
     } catch (e) {
       if (e instanceof functions.https.HttpsError) throw e;
       console.error('[getMyVisitStatus] error:', (e && e.stack) || e);
