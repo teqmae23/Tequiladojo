@@ -120,18 +120,21 @@
     box.id='td-lang-switch';
     box.style.cssText=fixed
       ? 'position:fixed;top:8px;right:8px;z-index:9999;display:flex;gap:2px;background:rgba(24,17,10,.72);backdrop-filter:blur(4px);border-radius:16px;padding:3px;box-shadow:0 2px 8px rgba(0,0,0,.25);'
-      : 'display:inline-flex;gap:2px;';
+      : 'display:inline-flex;gap:2px;align-items:center;vertical-align:middle;';
     LANGS.forEach(function(l){
       var btn=document.createElement('button');
       btn.type='button';
       btn.setAttribute('data-lang-btn', l);
       btn.textContent=(l==='ja')?'日本語':(l==='en')?'EN':'ES';
-      btn.style.cssText='border:none;background:transparent;color:'+(fixed?'#f0e6d0':'#4a3820')+';font-size:11px;font-weight:600;padding:4px 9px;border-radius:13px;cursor:pointer;font-family:inherit;line-height:1;';
+      // fixed（ページ本文の上に浮かせる）は明るい文字色。ホスト（ヘッダー内に挿入）は
+      // 設置先のヘッダー文字色を継承（inherit）するので暗色ヘッダーでも読める。
+      btn.style.cssText='border:none;background:transparent;color:'+(fixed?'#f0e6d0':'inherit')+';font-size:11px;font-weight:600;padding:4px 9px;border-radius:13px;cursor:pointer;font-family:inherit;line-height:1;';
       btn.addEventListener('click',function(){ setLang(l); });
       box.appendChild(btn);
     });
     var style=document.createElement('style');
-    style.textContent='#td-lang-switch button.active{background:'+(fixed?'#c8921e':'#e8d9b8')+';color:'+(fixed?'#1a1200':'#3a2a10')+';}';
+    // アクティブ言語は金色のピル。fixed/ホストのどちらでも暗色背景の上で読める。
+    style.textContent='#td-lang-switch button.active{background:#c8921e;color:#1a1200;}';
     document.head.appendChild(style);
     (host||document.body).appendChild(box);
   }

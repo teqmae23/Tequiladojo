@@ -40,7 +40,7 @@ input,select{font-family:var(--sans)}
 
 /* ─── メイン ─── */
 #main-screen{display:none}
-.topbar{background:var(--ink);padding:10px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
+.topbar{background:var(--ink);padding:10px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;flex-wrap:wrap}
 .top-brand{font-size:14px;color:var(--gold-l);letter-spacing:.04em;flex:1;font-weight:500}
 .top-home-btn{background:none;border:1px solid rgba(200,146,30,.6);color:var(--gold-l);padding:5px 12px;border-radius:var(--r);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;}
 .top-home-btn:hover{background:rgba(200,146,30,.15);}
@@ -123,6 +123,7 @@ input,select{font-family:var(--sans)}
 <div id="main-screen">
   <div class="topbar">
     <span class="top-brand" data-i18n="mem_top_brand">テキーラ道場オンライン</span>
+    <span id="lang-switch" style="display:inline-flex;align-items:center;color:var(--gold-l)"></span>
     <a href="/" class="top-home-btn">🏠 TOP</a>
     <button class="top-logout" onclick="doLogout()" data-i18n="mem_logout">ログアウト</button>
   </div>
@@ -529,7 +530,7 @@ async function saveVideoId(){
 }
 </script>
 <script src="/access-log.js?v=20260826"></script>
-<script src="/i18n.js?v=20260830"></script>
+<script src="/i18n.js?v=20260910"></script>
 <script>
 var MEM_I18N={
   ja:{ mem_login_btn:'ログイン', mem_logging_in:'ログイン中...',
