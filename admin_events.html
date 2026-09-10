@@ -1555,6 +1555,13 @@ function loadCats(){
 function catById(id){ for(var i=0;i<_cats.length;i++) if(_cats[i].id===id) return _cats[i]; return null; }
 function catIcon(id){ var c=catById(id); return (c&&c.icon)?c.icon:'📍'; }
 function catBg(id){ var c=catById(id); return (c&&c.bg)?c.bg:'#f5f3ee'; }
+// 移動アイテムは選択した移動手段のアイコンを優先（未指定は種別アイコン=既定🚗）
+var TRAVEL_ICONS={flight:'✈️',driving:'🚗',transit:'🚆',walking:'🚶',bicycling:'🚲'};
+function itemIcon(it){
+  if(it.overnight) return '🏨';
+  if(it.travelMode && TRAVEL_ICONS[it.travelMode]) return TRAVEL_ICONS[it.travelMode];
+  return catIcon(it.category);
+}
 // ── 種別管理 ──
 var _catEditId=null;
 var CAT_ICONS=['✈️','🚗','🚌','🚕','🚆','🚄','🚇','🛳️','⛴️','🚢','🚴','🚶','🏨','🏩','⛺','🏕️','🔑','🍴','🍽️','🍜','🍣','🍺','🍷','🥃','🍸','☕','🏭','🏛️','🏯','⛩️','🎉','🎊','🎡','🎢','🛍️','🛒','🎁','📷','🗺️','📍','🏔️','🏖️','🏝️','🌋','🎿','🎤','🎫','⭐','🔥','💰','🧭','⏰','📅'];
@@ -2010,7 +2017,7 @@ function loadSchedItems(){
   }).catch(function(e){ g('sch-list').innerHTML='<div class="ec">読込失敗: '+esc(e.message)+'</div>'; });
 }
 function renderSchedItemRow(it){
-  var ic=it.overnight?'🏨':catIcon(it.category);
+  var ic=itemIcon(it);
   var markers=[]; if(it.isMove) markers.push('🚗ルート'); if(it.lat!=null&&it.lng!=null) markers.push('📍地図'); if(it.hideUntilDone) markers.push('🙈完了後公開'); if(it.showNames&&(it.nameParticipants||[]).length) markers.push('👥'+esc(it.nameLabel||'名前')+' '+it.nameParticipants.length+'名'); if(it.roomingEnabled&&(it.rooms||[]).length) markers.push('🛏部屋割り'+it.rooms.length);
   var noteHtml=it.note?'<div class="se-note-line">'+esc(it.note.slice(0,80))+(it.note.length>80?'…':'')+'</div>':'';
   var ct=costText(it);
