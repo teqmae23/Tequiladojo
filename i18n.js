@@ -85,10 +85,17 @@
   function apply(){
     document.documentElement.lang=current;
     var d=DICT[current]||DICT.ja;
+    // 各要素のHTML記述時の原文（＝日本語ソース）を初回に退避し、現在の言語辞書に
+    // キーが無い場合は原文へ戻す。これがないと、日本語ソースをHTMLに直書きした
+    // （＝ja辞書に載せていない）文言が、en/esに切り替えた後で日本語へ戻せない。
     var els=document.querySelectorAll('[data-i18n]');
-    for(var i=0;i<els.length;i++){ var k=els[i].getAttribute('data-i18n'); if(d[k]!=null) els[i].textContent=d[k]; }
+    for(var i=0;i<els.length;i++){ var el=els[i], k=el.getAttribute('data-i18n');
+      if(el.__i18nOrig===undefined) el.__i18nOrig=el.textContent;
+      el.textContent=(d[k]!=null)?d[k]:el.__i18nOrig; }
     var elh=document.querySelectorAll('[data-i18n-html]');
-    for(var j=0;j<elh.length;j++){ var kh=elh[j].getAttribute('data-i18n-html'); if(d[kh]!=null) elh[j].innerHTML=d[kh]; }
+    for(var j=0;j<elh.length;j++){ var eh=elh[j], kh=eh.getAttribute('data-i18n-html');
+      if(eh.__i18nOrigHtml===undefined) eh.__i18nOrigHtml=eh.innerHTML;
+      eh.innerHTML=(d[kh]!=null)?d[kh]:eh.__i18nOrigHtml; }
     var imgs=document.querySelectorAll('[data-i18n-src]');
     for(var m=0;m<imgs.length;m++){
       (function(img){
@@ -99,7 +106,9 @@
       })(imgs[m]);
     }
     var elp=document.querySelectorAll('[data-i18n-ph]');
-    for(var q=0;q<elp.length;q++){ var kp=elp[q].getAttribute('data-i18n-ph'); if(d[kp]!=null) elp[q].setAttribute('placeholder', d[kp]); }
+    for(var q=0;q<elp.length;q++){ var ep=elp[q], kp=ep.getAttribute('data-i18n-ph');
+      if(ep.__i18nOrigPh===undefined) ep.__i18nOrigPh=ep.getAttribute('placeholder')||'';
+      ep.setAttribute('placeholder',(d[kp]!=null)?d[kp]:ep.__i18nOrigPh); }
     var btns=document.querySelectorAll('[data-lang-btn]');
     for(var b=0;b<btns.length;b++){ btns[b].classList.toggle('active', btns[b].getAttribute('data-lang-btn')===current); }
     if(typeof window.onI18nApplied==='function'){ try{ window.onI18nApplied(current); }catch(e){} }
