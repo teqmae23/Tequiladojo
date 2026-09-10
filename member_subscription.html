@@ -163,22 +163,34 @@ async function init(user){
 
 function render(){
   var eff=MemberPlan.effectivePlan(myMember, plans);
-  var hasSub=(myMember.subscriptionStatus==='active');
+  var status=myMember.subscriptionStatus;
+  var hasSub=(status==='active');
+  var isPastDue=(status==='past_due');
   // 現在のプラン
   var subInfo='';
-  if(myMember.subscriptionStatus){
-    var st={active:'有効',past_due:'支払い遅延',canceled:'解約済み'}[myMember.subscriptionStatus]||myMember.subscriptionStatus;
+  if(status){
+    var st={active:'有効',past_due:'支払い遅延',canceled:'解約済み'}[status]||status;
     subInfo='サブスク状態：'+esc(st);
     if(myMember.subscriptionPeriodEnd&&myMember.subscriptionPeriodEnd.seconds){
       var d=new Date(myMember.subscriptionPeriodEnd.seconds*1000);
       subInfo+='　/　次回更新：'+d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
     }
   }
+  // 支払い遅延（past_due）の解消方法を明示する
+  var pastDueBox=isPastDue
+    ? '<div class="banner warn" style="margin:12px 0 0">'
+      +'<div style="font-weight:700;margin-bottom:4px">⚠️ お支払いが確認できていません</div>'
+      +'カードでの引き落としに失敗しました。下の<b>「お支払い方法を更新」</b>からカード情報を更新すると、自動的に再請求されプランはそのまま継続されます'
+      +'（未払いの請求書もその場でお支払いいただけます）。更新のないまま数日が経過すると、プランが自動的に解約される場合があります。'
+      +'</div>'
+    : '';
   g('cur').innerHTML='<div class="cur-lbl">現在のプラン</div>'
     +'<div class="cur-name">'+esc(eff?eff.name:'—')+'</div>'
     +(subInfo?'<div class="cur-sub">'+subInfo+'</div>':'')
+    +pastDueBox
     +'<div class="cur-actions">'
-      +(hasSub?'<button class="btn bg2" onclick="openPortal()">サブスクを管理・解約</button>':'')
+      +(isPastDue?'<button class="btn bp" onclick="openPortal()">お支払い方法を更新する</button>':'')
+      +((hasSub||isPastDue)?'<button class="btn bg2" onclick="openPortal()">サブスクを管理・解約</button>':'')
     +'</div>';
 
   // 購入可能プラン（Stripe Price ID があり有効なもの）
