@@ -257,7 +257,16 @@ async function doLogin(){
       // 会員IDログイン: ID→メール解決とパスワード検証はサーバー側で実施
       try{
         const res=await fbFunctions.httpsCallable('loginWithMemberId')({memberId:raw,password:pw});
-        await auth.signInWithCustomToken(res.data.token);
+        const d=res.data||{};
+        if(d.token){
+          await auth.signInWithCustomToken(d.token);
+        }else if(d.email){
+          // カスタムトークン発行不可環境では、サーバーがパスワード検証済みの確定メールを返す。
+          // それを使ってクライアント側で直接ログイン（正しいメールに解決済みなので確実に成立）。
+          await auth.signInWithEmailAndPassword(d.email, pw);
+        }else{
+          throw new Error('no-credential');
+        }
       }catch(e1){
         // 明確な認証失敗（ID/パスワード相違）はそのまま表示
         if(e1&&e1.code==='functions/unauthenticated') throw e1;
@@ -295,7 +304,8 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('login-screen').style.display='flex';
     document.getElementById('main-screen').style.display='none';
     document.getElementById('l-btn').disabled=false;
-    document.getElementById('l-btn').textContent=t('mem_login_btn');
+    // i18n.js（ページ末尾で読み込み）より先に認証状態コールバックが発火し得るため、t 未定義を防ぐ
+    if(typeof t==='function') document.getElementById('l-btn').textContent=t('mem_login_btn');
     document.getElementById('l-err').textContent='';
   }
 });
