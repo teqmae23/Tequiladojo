@@ -275,11 +275,14 @@ exports.getMemberActivity = functions.region('asia-northeast1')
     }
 
     const _ret = jsonSafe({ memberId, visits, orders, blindResults, batchOrders, visitMemberMap, memberNames });
-    // 応答シリアライズ失敗はハンドラの外で起きるため、ここで検知して原因を可視化する
-    try { JSON.stringify(_ret); } catch (se) {
+    // callable のフレームワーク側エンコーダが特定のFirestore型で失敗し、ハンドラの
+    // try/catch の外側で捕捉不能な 500(INTERNAL) になる問題を回避するため、応答は
+    // JSON文字列として返す（文字列は必ずエンコードできる）。クライアントで JSON.parse する。
+    let _json;
+    try { _json = JSON.stringify(_ret); } catch (se) {
       throw new functions.https.HttpsError('failed-precondition', 'MA-serialize: ' + ((se && se.message) || se));
     }
-    return _ret;
+    return { __json: _json };
    } catch (e) {
      if (e instanceof functions.https.HttpsError) throw e;
      console.error('[getMemberActivity] error:', (e && e.stack) || e);
@@ -1520,7 +1523,7 @@ exports.getMyVisitStatus = functions.region('asia-northeast1')
           .where('status', '==', 'pending').limit(1).get();
         pending = !pr.empty;
       }
-      const _ret = jsonSafe({
+      return jsonSafe({
         storeOpen: store.open,
         sessionDate: store.sessionDate,
         checkedIn: !!visitKey,
@@ -1529,10 +1532,6 @@ exports.getMyVisitStatus = functions.region('asia-northeast1')
         memberId: member.id,
         memberName: member.data.nickname || member.data.name || member.id,
       });
-      try { JSON.stringify(_ret); } catch (se) {
-        throw new functions.https.HttpsError('failed-precondition', 'VS-serialize: ' + ((se && se.message) || se));
-      }
-      return _ret;
     } catch (e) {
       if (e instanceof functions.https.HttpsError) throw e;
       console.error('[getMyVisitStatus] error:', (e && e.stack) || e);
