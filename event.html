@@ -1195,6 +1195,13 @@ function loadCats(){
 }
 function catById(id){ for(var i=0;i<_cats.length;i++) if(_cats[i].id===id) return _cats[i]; return null; }
 function catIcon(id){ var c=catById(id); return (c&&c.icon)?c.icon:'📍'; }
+// 移動アイテムは選択した移動手段のアイコンを優先（未指定は種別アイコン=既定🚗）
+var TRAVEL_ICONS={flight:'✈️',driving:'🚗',transit:'🚆',walking:'🚶',bicycling:'🚲'};
+function itemIcon(it){
+  if(it.overnight) return '🏨';
+  if(it.travelMode && TRAVEL_ICONS[it.travelMode]) return TRAVEL_ICONS[it.travelMode];
+  return catIcon(it.category);
+}
 function catBg(id){ var c=catById(id); return (c&&c.bg)?c.bg:'#f5f3ee'; }
 var _schedItems=[], _photosByItem={};
 function phSort(a,b){ var ka=(a.takenAt||a.createdMs||0), kb=(b.takenAt||b.createdMs||0); return ka-kb; }
@@ -1470,7 +1477,7 @@ function costMain(it){ if(it.costAmount!=null){ var y=(it.costJpy!=null?it.costJ
 // 外貨換算時は「円貨（外貨）」で1行表示
 function costText(it){ var m=costMain(it); if(!m) return ''; if(it.costAmount!=null && it.costCurrency && it.costCurrency!=='JPY') return m+'（'+curSym(it.costCurrency)+Number(it.costAmount).toLocaleString()+'）'; return m; }
 function renderSchedItem(it){
-  var ic=it.overnight?'🏨':catIcon(it.category);
+  var ic=itemIcon(it);
   var geo=(it.lat!=null&&it.lng!=null);
   var hideLoc=_locHidden(it); // ストーカー対策: 滞在中は位置を伏せる
   var meta=[];
@@ -1540,7 +1547,7 @@ function nowSectionHtml(visEnr){
   var entry=cur||next; if(!entry) return '';
   var it=entry.it, hideLoc=_locHidden(it), geo=(it.lat!=null&&it.lng!=null)&&!hideLoc;
   _nowMapItem=geo?it:null;
-  var ic=it.overnight?'🏨':catIcon(it.category);
+  var ic=itemIcon(it);
   var tline=(it.time||it.endTime)?('<span class="sc-now-t">'+esc(it.time||'—')+(it.isMove&&it.toTime?' → '+esc(it.toTime):(!it.isMove&&it.endTime?' → '+esc(it.endTime):''))+'</span>'):'';
   var h='<div class="sc-now live"><div class="sc-now-lbl">'+(cur?'▶ 現在のイベント':'⏭ まもなく')+'</div>'
     +'<div class="sc-now-item">'+tline+'<span class="sc-now-ic">'+ic+'</span><span class="sc-now-ttl">'+(it.overnight?'(泊) ':'')+esc(it.title||'')+'</span></div>'
