@@ -418,12 +418,29 @@ exports.loginWithMemberId = functions.region('asia-northeast1')
     if (!/^[A-Za-z0-9_-]{1,20}$/.test(memberId) || !password) {
       throw new functions.https.HttpsError('invalid-argument', 'IDとパスワードを入力してください');
     }
-    // ID→メール解決（memberIndexに登録がなければ仮想ドメイン）
-    let email = memberId + '@tequiladojo.member';
+    // ID→メール解決
+    // 入力IDは会員に表示される「表示ID(displayId)」。members は内部ID(realId)で
+    // ドキュメント化され、memberIndex も realId でキーされているため、表示IDを
+    // そのまま memberIndex/docId で引くと外れる。まず members を displayId で検索し、
+    // 実際の認証メール（未設定なら displayId ベースの仮想メール）を解決する。
+    let email = null;
     try {
-      const idx = await db.collection('memberIndex').doc(memberId).get();
-      if (idx.exists && idx.data().email) email = idx.data().email;
+      let snap = await db.collection('members').where('displayId', '==', memberId).limit(1).get();
+      // 旧データ: displayId 未設定で memberId フィールドが表示IDのケース
+      if (snap.empty) snap = await db.collection('members').where('memberId', '==', memberId).limit(1).get();
+      if (!snap.empty) {
+        const m = snap.docs[0].data();
+        email = m.email || ((m.displayId || m.memberId || memberId) + '@tequiladojo.member');
+      }
     } catch (e) { /* noop */ }
+    // 後方互換: docId=表示ID で memberIndex に登録されているケース
+    if (!email) {
+      try {
+        const idx = await db.collection('memberIndex').doc(memberId).get();
+        if (idx.exists && idx.data().email) email = idx.data().email;
+      } catch (e) { /* noop */ }
+    }
+    if (!email) email = memberId + '@tequiladojo.member';
     // パスワード検証（Web APIキーは公開情報のため秘匿対象ではない）
     const API_KEY = 'AIzaSyD6a3i-N1RyXyAfXmztPQrYtx4x62YGth0';
     const resp = await fetch(
