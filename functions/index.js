@@ -419,44 +419,72 @@ exports.loginWithMemberId = functions.region('asia-northeast1')
       throw new functions.https.HttpsError('invalid-argument', 'IDとパスワードを入力してください');
     }
     // ID→メール解決
-    // 入力IDは会員に表示される「表示ID(displayId)」。members は内部ID(realId)で
-    // ドキュメント化され、memberIndex も realId でキーされているため、表示IDを
-    // そのまま memberIndex/docId で引くと外れる。まず members を displayId で検索し、
-    // 実際の認証メール（未設定なら displayId ベースの仮想メール）を解決する。
-    let email = null;
+    // 入力IDは会員に表示される「表示ID(displayId)」。ただし members ドキュメントの
+    // IDは内部ID(realId)であることが多く、memberIndex も realId でキーされ、さらに
+    // 登録経路によっては members.email が実際のAuthメールと一致しない。そこで、
+    //  1) 入力IDから会員ドキュメントを特定（docId一致→displayId→memberId、文字列/数値両対応）
+    //  2) 会員の authUid から Auth レコードの「実メール」を取得（最も確実）
+    //  3) 取れなければ members.email／仮想メール／memberIndex にフォールバック
+    let memberDoc = null;
     try {
-      let snap = await db.collection('members').where('displayId', '==', memberId).limit(1).get();
-      // 旧データ: displayId 未設定で memberId フィールドが表示IDのケース
-      if (snap.empty) snap = await db.collection('members').where('memberId', '==', memberId).limit(1).get();
-      if (!snap.empty) {
-        const m = snap.docs[0].data();
-        email = m.email || ((m.displayId || m.memberId || memberId) + '@tequiladojo.member');
+      const direct = await db.collection('members').doc(memberId).get();
+      if (direct.exists) {
+        memberDoc = direct;
+      } else {
+        const tryFields = ['displayId', 'memberId'];
+        const vals = [memberId];
+        if (/^\d+$/.test(memberId)) vals.push(Number(memberId)); // 数値保存されているケース
+        for (let fi = 0; fi < tryFields.length && !memberDoc; fi++) {
+          for (let vi = 0; vi < vals.length && !memberDoc; vi++) {
+            const snap = await db.collection('members').where(tryFields[fi], '==', vals[vi]).limit(1).get();
+            if (!snap.empty) memberDoc = snap.docs[0];
+          }
+        }
       }
     } catch (e) { /* noop */ }
-    // 後方互換: docId=表示ID で memberIndex に登録されているケース
-    if (!email) {
-      try {
-        const idx = await db.collection('memberIndex').doc(memberId).get();
-        if (idx.exists && idx.data().email) email = idx.data().email;
-      } catch (e) { /* noop */ }
+
+    // 認証を試すメール候補を優先順で組み立てる（登録経路によるメール不整合に強くする）。
+    // すべてサーバー側で試行し、最初に成功したもので確定する。失敗時は同一メッセージ（列挙対策）。
+    const candidates = [];
+    const addCand = (e) => { if (e && candidates.indexOf(e) === -1) candidates.push(e); };
+    if (memberDoc) {
+      const m = memberDoc.data();
+      if (m.authUid) {
+        try { const u = await auth.getUser(m.authUid); if (u && u.email) addCand(u.email); } catch (e) { /* noop */ }
+      }
+      addCand(m.email);
+      addCand((m.displayId || '') && (m.displayId + '@tequiladojo.member'));
+      addCand((m.memberId || '') && (m.memberId + '@tequiladojo.member'));
+      addCand(memberDoc.id + '@tequiladojo.member');
     }
-    if (!email) email = memberId + '@tequiladojo.member';
+    try {
+      const idx = await db.collection('memberIndex').doc(memberId).get();
+      if (idx.exists && idx.data().email) addCand(idx.data().email);
+    } catch (e) { /* noop */ }
+    addCand(memberId + '@tequiladojo.member');
+
     // パスワード検証（Web APIキーは公開情報のため秘匿対象ではない）
     const API_KEY = 'AIzaSyD6a3i-N1RyXyAfXmztPQrYtx4x62YGth0';
-    const resp = await fetch(
-      'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + API_KEY,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, returnSecureToken: true }),
-      }
-    );
-    const body = await resp.json().catch(() => ({}));
-    if (!resp.ok || !body.localId) {
+    let localId = null;
+    for (let i = 0; i < candidates.length && !localId; i++) {
+      try {
+        const resp = await fetch(
+          'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=' + API_KEY,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: candidates[i], password, returnSecureToken: true }),
+          }
+        );
+        const body = await resp.json().catch(() => ({}));
+        if (resp.ok && body.localId) localId = body.localId;
+      } catch (e) { /* 次の候補へ */ }
+    }
+    if (!localId) {
       // 存在しないID・誤パスワードを区別せず同一メッセージ（列挙対策）
       throw new functions.https.HttpsError('unauthenticated', 'IDまたはパスワードが正しくありません');
     }
-    const token = await auth.createCustomToken(body.localId);
+    const token = await auth.createCustomToken(localId);
     return { token };
   });
 
