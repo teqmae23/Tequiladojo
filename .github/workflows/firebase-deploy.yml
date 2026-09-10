@@ -37,15 +37,16 @@ jobs:
           FIREBASE_PROJECT: tequiladojo
           RULES_FILE: firestore.rules
           RULES_RELEASE: cloud.firestore
-      # storage ルールも同じ serviceusage 403 で CLI デプロイが失敗するため、
-      # 失敗してもジョブ全体は止めない（警告を出す）。恒久対応が必要なら
-      # サービスアカウントに roles/serviceusage.serviceUsageConsumer を付与する。
-      - name: Deploy Storage rules (best effort)
-        run: |
-          firebase deploy --only storage --project tequiladojo --non-interactive \
-            || echo "::warning::Storageルールのデプロイに失敗しました。Cloud Shellから firebase deploy --only storage を実行してください"
+      # Storage ルールも firestore と同じ serviceusage 403 で CLI デプロイが失敗するため、
+      # Rules REST API 経由で反映する（バケット名を含むリリース名は自動検出）。
+      - name: Deploy Storage rules (REST API)
+        run: python3 scripts/deploy_firestore_rules.py
         env:
           GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          FIREBASE_PROJECT: tequiladojo
+          RULES_FILE: storage.rules
+          RULES_RELEASE: firebase.storage/tequiladojo.firebasestorage.app
+          RELEASE_DISCOVER_PREFIX: firebase.storage/
       # Cloud Functions は functions/ に変更があった時のみデプロイ（手動実行時は強制）。
       # 失敗してもCIは止めない（権限不足時は警告のみ）。温湿度ログ(logEnvHourly)・
       # 注文への温湿度スタンプ(stampOrderEnv)等はここでデプロイされないと反映されない。
