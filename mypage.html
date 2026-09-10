@@ -800,7 +800,10 @@ function fetchActivity(memberId){
   if(!_activityPromise){
     // 管理者プレビュー時は対象会員のdocIDをサーバーへ渡す（未指定だとログイン中スタッフ本人の履歴が返る）
     const req=_mpPreviewId?{previewMemberId:_mpPreviewId}:{};
-    _activityPromise=fbFunctions.httpsCallable('getMemberActivity')(req).then(r=>r.data||{});
+    _activityPromise=fbFunctions.httpsCallable('getMemberActivity')(req).then(r=>{
+      var d=(r&&r.data)||{};
+      return (d&&typeof d.__json==='string')?JSON.parse(d.__json):d; // サーバはJSON文字列で返す
+    });
   }
   return _activityPromise;
 }
