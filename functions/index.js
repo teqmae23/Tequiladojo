@@ -150,6 +150,7 @@ async function assertStaff(context) {
 // 会員向けページ（mypage/tastinglog/member_map）はここ経由で本人分のみ取得する
 exports.getMemberActivity = functions.region('asia-northeast1')
   .https.onCall(async (data, context) => {
+   try {
     if (!context.auth || context.auth.token.firebase && context.auth.token.firebase.sign_in_provider === 'anonymous') {
       throw new functions.https.HttpsError('unauthenticated', 'ログインが必要です');
     }
@@ -256,6 +257,11 @@ exports.getMemberActivity = functions.region('asia-northeast1')
     }
 
     return { memberId, visits, orders, blindResults, batchOrders, visitMemberMap, memberNames };
+   } catch (e) {
+     if (e instanceof functions.https.HttpsError) throw e;
+     console.error('[getMemberActivity] error:', (e && e.stack) || e);
+     throw new functions.https.HttpsError('internal', 'member-activity: ' + ((e && e.message) || e));
+   }
   });
 
 // ── 会員登録（新規・引継コード共通） ─────────────────────────────
