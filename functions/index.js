@@ -796,6 +796,7 @@ exports.stripeWebhook = functions
             stripeSubscriptionId: subId,
             subscriptionStatus: 'active',
             subscriptionPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
+            subscriptionPastDueSince: null, // 支払い完了で遅延状態を解消
           });
         }
       }
@@ -804,7 +805,12 @@ exports.stripeWebhook = functions
       const snap = await db.collection('members')
         .where('stripeCustomerId', '==', cid).limit(1).get();
       if (!snap.empty) {
-        await snap.docs[0].ref.update({ subscriptionStatus: 'past_due' });
+        const upd = { subscriptionStatus: 'past_due' };
+        // 支払い遅延の開始時刻を初回のみ記録（1ヶ月経過で「休会中」表示に使う）。
+        if (!snap.docs[0].data().subscriptionPastDueSince) {
+          upd.subscriptionPastDueSince = admin.firestore.FieldValue.serverTimestamp();
+        }
+        await snap.docs[0].ref.update(upd);
       }
     } else if (event.type === 'customer.subscription.deleted') {
       const cid = obj.customer;
@@ -818,6 +824,7 @@ exports.stripeWebhook = functions
           subscriptionStatus: 'canceled',
           subscriptionPeriodEnd: null,
           cancelAtPeriodEnd: false,
+          subscriptionPastDueSince: null,
         });
       }
     } else if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
@@ -854,6 +861,12 @@ exports.stripeWebhook = functions
           upd.grade = grade;
           upd.subscriptionPlanId = planId;
         }
+        // 支払い遅延の開始時刻: 有効化で解消、past_due開始時に初回のみ記録
+        if (status === 'active' || status === 'trialing') {
+          upd.subscriptionPastDueSince = null;
+        } else if (status === 'past_due' && !snap.docs[0].data().subscriptionPastDueSince) {
+          upd.subscriptionPastDueSince = admin.firestore.FieldValue.serverTimestamp();
+        }
         await snap.docs[0].ref.update(upd);
       }
     } else if (event.type === 'checkout.session.completed') {
@@ -884,6 +897,12 @@ const SUBSCRIPTION_ALLOWED_ORIGINS = [
 function safeSubOrigin(o) {
   if (typeof o === 'string' && SUBSCRIPTION_ALLOWED_ORIGINS.indexOf(o) >= 0) return o;
   return SUBSCRIPTION_ALLOWED_ORIGINS[0];
+}
+// サイトの対応言語のみ許可（Stripeの preferred_locales / Checkout locale に使う）。
+// これにより支払い失敗時のダニングメール・請求書ページ・ポータルが会員の言語で届く。
+function normalizeLang(l) {
+  const s = String(l || '').toLowerCase().slice(0, 2);
+  return (s === 'en' || s === 'es') ? s : 'ja';
 }
 
 // 保存済みの stripeCustomerId が現在のStripe上で有効か確認し、無効（削除済み・
@@ -921,6 +940,7 @@ exports.createSubscriptionCheckout = functions
     const planId = data && data.planId;
     if (!planId) throw new functions.https.HttpsError('invalid-argument', 'planId が必要です');
     const origin = safeSubOrigin(data && data.origin);
+    const lang = normalizeLang(data && data.lang); // 会員の表示言語（Stripeの言語設定に使う）
 
     const msnap = await db.collection('members')
       .where('authUid', '==', context.auth.uid).limit(1).get();
@@ -946,6 +966,7 @@ exports.createSubscriptionCheckout = functions
         success_url: origin + '/member_subscription.html?checkout=success',
         cancel_url: origin + '/member_subscription.html?checkout=cancel',
         allow_promotion_codes: true,
+        locale: lang, // Checkout画面を会員の言語で表示
       };
     }
 
@@ -964,15 +985,23 @@ exports.createSubscriptionCheckout = functions
       await memberRef.update({ stripeCustomerId: c.id });
       return c.id;
     }
+    // 会員の言語を Stripe顧客に設定（支払い失敗時のダニングメール・請求書ページ・
+    // ポータルが会員の言語で届く）。会員ドキュメントにも保存しておく。
+    async function applyLocale(cid) {
+      try { await stripe.customers.update(cid, { preferred_locales: [lang] }); } catch (e) { /* 非致命 */ }
+      try { await memberRef.update({ preferredLang: lang }); } catch (e) { /* 非致命 */ }
+    }
     let session;
     try {
       const customerId = await resolveValidCustomerId(stripe, memberRef, member, memberId);
+      await applyLocale(customerId);
       session = await stripe.checkout.sessions.create(sessionParams(customerId));
     } catch (e) {
       const staleCustomer = e && e.code === 'resource_missing' && e.param === 'customer';
       if (staleCustomer) {
         try {
           const cid = await freshCustomerId();
+          await applyLocale(cid);
           session = await stripe.checkout.sessions.create(sessionParams(cid));
         } catch (e2) {
           console.error('createSubscriptionCheckout retry error', {
