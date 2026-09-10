@@ -274,11 +274,17 @@ exports.getMemberActivity = functions.region('asia-northeast1')
       console.error('[getMemberActivity] aggregation failed for member ' + memberId + ':', (e && e.stack) || e);
     }
 
-    return jsonSafe({ memberId, visits, orders, blindResults, batchOrders, visitMemberMap, memberNames });
+    const _ret = jsonSafe({ memberId, visits, orders, blindResults, batchOrders, visitMemberMap, memberNames });
+    // 応答シリアライズ失敗はハンドラの外で起きるため、ここで検知して原因を可視化する
+    try { JSON.stringify(_ret); } catch (se) {
+      throw new functions.https.HttpsError('failed-precondition', 'MA-serialize: ' + ((se && se.message) || se));
+    }
+    return _ret;
    } catch (e) {
      if (e instanceof functions.https.HttpsError) throw e;
      console.error('[getMemberActivity] error:', (e && e.stack) || e);
-     throw new functions.https.HttpsError('internal', 'member-activity: ' + ((e && e.message) || e));
+     // internal はメッセージがクライアントで INTERNAL に潰れるため、原因表示用に別コードを使う
+     throw new functions.https.HttpsError('failed-precondition', 'MA-error: ' + ((e && e.message) || e));
    }
   });
 
@@ -1514,7 +1520,7 @@ exports.getMyVisitStatus = functions.region('asia-northeast1')
           .where('status', '==', 'pending').limit(1).get();
         pending = !pr.empty;
       }
-      return jsonSafe({
+      const _ret = jsonSafe({
         storeOpen: store.open,
         sessionDate: store.sessionDate,
         checkedIn: !!visitKey,
@@ -1523,10 +1529,14 @@ exports.getMyVisitStatus = functions.region('asia-northeast1')
         memberId: member.id,
         memberName: member.data.nickname || member.data.name || member.id,
       });
+      try { JSON.stringify(_ret); } catch (se) {
+        throw new functions.https.HttpsError('failed-precondition', 'VS-serialize: ' + ((se && se.message) || se));
+      }
+      return _ret;
     } catch (e) {
       if (e instanceof functions.https.HttpsError) throw e;
       console.error('[getMyVisitStatus] error:', (e && e.stack) || e);
-      throw new functions.https.HttpsError('internal', 'visit-status: ' + ((e && e.message) || e));
+      throw new functions.https.HttpsError('failed-precondition', 'VS-error: ' + ((e && e.message) || e));
     }
   });
 
