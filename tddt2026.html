@@ -311,6 +311,16 @@ a{color:var(--gold-d)}
 .ck-plist{display:flex;flex-wrap:wrap;gap:6px}
 .ck-p{font-size:12px;padding:3px 9px;border-radius:12px;background:var(--cream2);color:var(--ink2)}
 .ck-p.ok{background:#e7f6f1;color:var(--teal)}
+.ck-admin{margin-top:10px;border-top:1px dashed var(--border2);padding-top:8px;background:#fff8e9;border-radius:8px;padding:8px 10px}
+.ck-admin .sh{font-size:11px;color:var(--gold-d);font-weight:700;margin-bottom:6px}
+.ck-adm-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ck-adm-sel{flex:1;min-width:120px;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;background:#fff}
+.ck-adm-btn{padding:7px 14px;border:none;border-radius:16px;font-size:12px;font-weight:700;background:var(--gold-d);color:#fff;cursor:pointer;white-space:nowrap}
+.ck-adm-file{display:block;margin-top:6px;font-size:12px}
+.ck-adm-msg{display:block;width:100%;margin-top:6px;min-height:44px;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px}
+.ck-adm-undo{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ck-adm-done{font-size:12px;padding:3px 6px 3px 9px;border-radius:12px;background:#e7f6f1;color:var(--teal);display:inline-flex;align-items:center;gap:6px}
+.ck-adm-x{border:1px solid var(--border2);background:#fff;color:var(--red);border-radius:10px;font-size:10px;padding:1px 7px;cursor:pointer}
 .ck-prog-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;border:1px solid transparent;flex:0 0 auto}
 .ck-prog-sel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
 .ck-prog-lbl{font-size:13px;font-weight:700;color:var(--ink2);margin-right:2px}
@@ -2078,8 +2088,76 @@ function taskDetailHtml(t){
       return '<span class="ck-p'+(ok?' ok':'')+'">'+(ok?'✓ ':'□ ')+esc(p.nickname||'（会員）')+'</span>';
     }).join('');
     hh+='<div class="ck-status"><div class="sh">全員の状況（'+doneN+'/'+list.length+'）</div>'+(list.length?'<div class="ck-plist">'+pl+'</div>':'<div style="font-size:12px;color:var(--ink3)">対象の参加登録者がいません</div>')+'</div>';
+    // 管理者: 会員の代わりに提出・完了できるパネル（uidを持つ会員が対象）
+    if(_isStaff){
+      var uidList=list.filter(function(p){ return p.id && String(p.id).indexOf('mid:')!==0; });
+      var opts=uidList.map(function(p){ return '<option value="'+esc(p.id)+'">'+esc(p.nickname||'（会員）')+'</option>'; }).join('');
+      var admFile=t.requireFile?'<input type="file" id="ckadmf-'+esc(t.id)+'" class="ck-adm-file">':'';
+      var admMsg=t.requireMessage?'<textarea id="ckadmm-'+esc(t.id)+'" class="ck-adm-msg" placeholder="'+esc(t.msgLabel||t.title||'メッセージ')+'"></textarea>':'';
+      var doneMembers=uidList.filter(function(p){ var c=comps[p.id]; return st?!!(c&&c.progress&&c.progress===_progLastId(t)):!!(c&&c.done); });
+      var undo=doneMembers.length?('<div class="ck-adm-undo">'+doneMembers.map(function(p){ return '<span class="ck-adm-done">✓ '+esc(p.nickname||'会員')+'<button type="button" class="ck-adm-x" onclick="adminProxyUncomplete(\''+esc(t.id)+'\',\''+esc(p.id)+'\')">取消</button></span>'; }).join('')+'</div>'):'';
+      hh+='<div class="ck-admin"><div class="sh">🛠 管理者：会員の代わりに提出・完了</div>'
+        +(uidList.length
+          ? '<div class="ck-adm-row"><select id="ckadm-'+esc(t.id)+'" class="ck-adm-sel">'+opts+'</select>'
+            +'<button type="button" class="ck-adm-btn" onclick="adminProxyComplete(\''+esc(t.id)+'\')">完了にする</button></div>'
+            +admFile+admMsg
+          : '<div style="font-size:12px;color:var(--ink3)">代理提出できる会員（ログイン済み）がいません</div>')
+        +undo+'</div>';
+    }
   }
   return hh;
+}
+// ── 管理者による代理提出・完了 ──
+function adminSetCompletion(taskId, uid, mem, extra){
+  var data=Object.assign({ authUid:uid, memberId:(mem&&mem.memberId)||'', memberName:(mem&&mem.nickname)||'',
+    byAdmin:true, adminUid:_uid, updatedAt:firebase.firestore.FieldValue.serverTimestamp() }, extra||{});
+  if(extra&&extra.done===true) data.doneAt=firebase.firestore.FieldValue.serverTimestamp();
+  if(extra&&extra.done===false) data.doneAt=null;
+  return db.collection('events').doc(eventId).collection('tasks').doc(taskId).collection('completions').doc(uid)
+    .set(data,{merge:true}).then(function(){ loadChecklist(); });
+}
+function adminProxyUpload(t,file,uid,mem){
+  if(!storage) return Promise.reject(new Error('この環境ではアップロードできません'));
+  if(file.size>20*1024*1024) return Promise.reject(new Error('ファイルは20MB以内にしてください'));
+  var ext=(file.name.match(/\.([A-Za-z0-9]+)$/)||[,'bin'])[1].toLowerCase();
+  var path='event_docs/'+eventId+'/sub_'+t.id+'_'+uid+'.'+ext;
+  var ref=storage.ref(path);
+  return ref.put(file,{contentType:file.type||'application/octet-stream'}).then(function(){ return ref.getDownloadURL(); })
+    .then(function(url){
+      var docId='sub_'+t.id+'_'+uid;
+      return db.collection('events').doc(eventId).collection('documents').doc(docId).set({
+        title:(t.title||'提出書類')+'（'+((mem&&mem.nickname)||'会員')+'）',
+        category:'submission', type:'file', taskId:t.id, taskTitle:t.title||'',
+        uploaderUid:uid, uploaderName:(mem&&mem.nickname)||'', memberId:(mem&&mem.memberId)||'',
+        url:url, fileName:file.name, size:file.size, storagePath:path,
+        byAdmin:true, adminUid:_uid,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function(){ return {fileUrl:url, fileName:file.name, submissionDocId:docId, submissionPath:path, approved:false}; });
+    });
+}
+function adminProxyComplete(taskId){
+  if(!_isStaff) return;
+  var t=_tasks.find(function(x){return x.id===taskId;}); if(!t) return;
+  var sel=g('ckadm-'+taskId); var uid=sel&&sel.value; if(!uid){ toast('会員を選択してください'); return; }
+  var mem=(_participants||[]).find(function(p){return p.id===uid;})||{};
+  var fi=g('ckadmf-'+taskId); var file=(fi&&fi.files&&fi.files[0])||null;
+  var msg='';
+  if(t.requireMessage){ var mel=g('ckadmm-'+taskId); msg=((mel&&mel.value)||'').trim(); if(!msg){ toast('メッセージを入力してください'); return; } }
+  if(t.requireFile && !file){ var ex=(t._comps||[]).find(function(c){return c.id===uid;}); if(!(ex&&ex.fileUrl)){ toast('このタスクはファイル提出が必要です'); return; } }
+  var progExtra=_progStates(t)?{progress:_progLastId(t)}:{};
+  var up=file?adminProxyUpload(t,file,uid,mem):Promise.resolve(null);
+  up.then(function(extra){
+    var data=Object.assign({done:true}, progExtra, t.requireMessage?{message:msg}:{}, extra||{});
+    return adminSetCompletion(taskId, uid, mem, data);
+  }).then(function(){ toast((mem.nickname||'会員')+' を完了にしました'); })
+    .catch(function(e){ toast('失敗: '+((e&&e.message)||e)); });
+}
+function adminProxyUncomplete(taskId, uid){
+  if(!_isStaff) return;
+  if(!window.confirm('この会員の完了を取り消しますか？')) return;
+  var mem=(_participants||[]).find(function(p){return p.id===uid;})||{};
+  adminSetCompletion(taskId, uid, mem, {done:false, progress:''})
+    .then(function(){ toast('取り消しました'); }).catch(function(e){ toast('失敗: '+((e&&e.message)||e)); });
 }
 function toggleTaskDetail(id){ var d=g('ckd-'+id), c=g('ckcar-'+id); if(!d) return; var open=d.style.display!=='none'; d.style.display=open?'none':''; _ckExpanded[id]=!open; if(c)c.textContent=open?'▸':'▾'; }
 function renderChecklist(){
