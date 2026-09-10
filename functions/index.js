@@ -466,6 +466,7 @@ exports.loginWithMemberId = functions.region('asia-northeast1')
     // パスワード検証（Web APIキーは公開情報のため秘匿対象ではない）
     const API_KEY = 'AIzaSyD6a3i-N1RyXyAfXmztPQrYtx4x62YGth0';
     let localId = null;
+    let workingEmail = null;
     for (let i = 0; i < candidates.length && !localId; i++) {
       try {
         const resp = await fetch(
@@ -477,15 +478,25 @@ exports.loginWithMemberId = functions.region('asia-northeast1')
           }
         );
         const body = await resp.json().catch(() => ({}));
-        if (resp.ok && body.localId) localId = body.localId;
+        if (resp.ok && body.localId) { localId = body.localId; workingEmail = candidates[i]; }
       } catch (e) { /* 次の候補へ */ }
     }
     if (!localId) {
       // 存在しないID・誤パスワードを区別せず同一メッセージ（列挙対策）
       throw new functions.https.HttpsError('unauthenticated', 'IDまたはパスワードが正しくありません');
     }
-    const token = await auth.createCustomToken(localId);
-    return { token };
+    // カスタムトークン発行にはサービスアカウントの署名権限
+    // （iam.serviceAccounts.signBlob ＝「サービス アカウント トークン作成者」ロール）が必要で、
+    // 付与されていない環境では createCustomToken が例外を投げ 500 になる。パスワードは上で
+    // 検証済みなので、その場合は確定したメールアドレスを返し、クライアント側で
+    // signInWithEmailAndPassword によりログインさせる（パスワード成功時のみ返すため列挙対策は保たれる）。
+    try {
+      const token = await auth.createCustomToken(localId);
+      return { token };
+    } catch (e) {
+      console.warn('createCustomToken unavailable; returning email for client sign-in:', (e && e.message) || e);
+      return { email: workingEmail };
+    }
   });
 
 // ── 店頭ステータス（Firestore + RTDB）をスタッフ権限で更新 ──────
